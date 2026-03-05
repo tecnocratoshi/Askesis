@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD004 MD005 MD007 MD009 MD012 MD013 MD029 MD030 MD031 MD032 MD033 MD036 MD040 MD041 MD047 MD060 -->
+
 <p align="left" style="margin: 0 0 4px 0; line-height: 0;">
   <a href="README.md" style="text-decoration: none; border: 0;"><img src="assets/flags/pt-br.svg" width="30" height="18" alt="PT-BR" style="border: 0; vertical-align: middle;"></a>&nbsp;
   <a href="#en" style="text-decoration: none; border: 0;"><img src="assets/flags/en.svg" width="30" height="18" alt="EN" style="border: 0; vertical-align: middle;"></a>&nbsp;
@@ -11,11 +13,9 @@
 
 <a id="en" style="text-decoration: none; color: black; font-size: 1.5em; cursor: default;"><b>EN</b></a>
 
-<p align="center">
-  <div>
-    <img src="assets/AristotelesIngles.jpg" alt="Aristotle (English)" width="100%" style="border-radius: 10px; border: 1px solid #2a2a2a; display: block; margin: 0 auto;">
-  </div>
-</p>
+<div align="center">
+  <img src="assets/AristotelesIngles.jpg" alt="Aristotle (English)" width="100%" style="border-radius: 10px; border: 1px solid #2a2a2a; display: block; margin: 0 auto;">
+</div>
 
 Project epigraph — directly connects with Askesis's purpose as a **habit tracker**: consistency and excellence are built through daily practice, and **habits** are the core mechanism that helps train and track them.<br>
 
@@ -123,6 +123,7 @@ Askesis is designed in layers: intuitive on the surface, but packed with powerfu
 Habits are the fundamental unit of the application. The system allows tracking not only completion ("check"), but also quantity and intensity (pages read, minutes meditated).
 
 To start building your routine, you have two paths:
+
 - **Bright Green (+) Button:** The main entry point in the bottom corner.
 
 <br>
@@ -174,6 +175,7 @@ Days are represented by **Conical Progress Rings**, a data visualization that fi
 
 **Calendar Micro-Actions (Power User):**
 The calendar strip has hidden shortcuts to facilitate bulk management:
+
 - **1 Click:** Select the date to view history.
 - **Press and Hold (Long Press):** Open a quick actions menu to **Complete the Day**, **Defer the Day**, or open the **Full Monthly Calendar**, allowing you to jump to any date in the year quickly.
 
@@ -276,7 +278,7 @@ The gear icon in the top corner allows configuration and management of the entir
 <br>
 <a id="en-user-flows"></a>
 <details>
-<summary><h1 style="display:inline;">Main User Flows</h1>
+<summary><h1 style="display:inline; margin:0;">Main User Flows</h1>
 </summary>
 
 <br>
@@ -562,7 +564,7 @@ Conflicts: remote decryption, merge with LWW/deduplication, persistence and retr
 <br>
 <a id="en-deep-dive-technical"></a>
 <details>
-<summary><h1 style= "display:inline;">Deep Dive Technical</h1>
+<summary><h1 style="display:inline; margin:0;">Deep Dive Technical</h1>
 </summary>
 
 <br>
@@ -1011,7 +1013,7 @@ The vision for Askesis is to expand its native presence while maintaining the un
 
 <a id="en-faq"></a>
 <details>
-<summary><h1 style="display:inline;">FAQ & Troubleshooting</h1></summary>
+<summary><h1 style="display:inline; margin:0;">FAQ & Troubleshooting</h1></summary>
 
 <br>
 

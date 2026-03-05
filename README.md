@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD004 MD005 MD007 MD009 MD012 MD013 MD029 MD030 MD031 MD032 MD033 MD036 MD040 MD041 MD047 MD060 -->
+
 <p align="left" style="margin: 0 0 4px 0; line-height: 0;">
   <a href="#pt-br" style="text-decoration: none; border: 0;"><img src="assets/flags/pt-br.svg" width="30" height="18" alt="PT-BR" style="border: 0; vertical-align: middle;"></a>&nbsp;
   <a href="README.en.md" style="text-decoration: none; border: 0;"><img src="assets/flags/en.svg" width="30" height="18" alt="EN" style="border: 0; vertical-align: middle;"></a>&nbsp;
@@ -11,11 +13,9 @@
 
 <a id="pt-br" style="text-decoration: none; color: black; font-size: 1.5em; cursor: default;"><b>PT-BR</b></a>
 
-<p align="center">
-  <div>
-    <img src="assets/AristotelesPortugues.jpg" alt="Aristóteles (Português)" width="100%" style="border-radius: 10px; border: 1px solid #2a2a2a; display: block; margin: 0 auto;">
-  </div>
-</p>
+<div align="center">
+  <img src="assets/AristotelesPortugues.jpg" alt="Aristóteles (Português)" width="100%" style="border-radius: 10px; border: 1px solid #2a2a2a; display: block; margin: 0 auto;">
+</div>
 
 Epígrafe do projeto — conecta direto com o propósito do Askesis como **rastreador de hábitos**: consistência e excelência se constroem pela prática diária, e **hábitos** são o mecanismo que o app ajuda a treinar e acompanhar.<br>
 
@@ -279,7 +279,7 @@ O ícone de engrenagem no canto superior permite a configuração e gestão de t
 <br>
 <a id="pt-fluxos-usuario"></a>
 <details>
-<summary><h1 style="display:inline;">Principais Fluxos de Usuário</h1>
+<summary><h1 style="display:inline; margin:0;">Principais Fluxos de Usuário</h1>
 </summary>
 
 <br>
@@ -567,7 +567,7 @@ Conflitos: descriptografia remota, merge com LWW/deduplicação, persistência e
 <br>
 <a id="pt-deep-dive-technical"></a>
 <details>
-<summary><h1 style= "display:inline;">Deep Dive Técnico</h1>
+<summary><h1 style="display:inline; margin:0;">Deep Dive Técnico</h1>
 </summary>
 
 <br>
@@ -1005,7 +1005,7 @@ A visão para o Askesis é expandir sua presença nativa mantendo a base de cód
 
 <a id="pt-faq"></a>
 <details>
-<summary><h1 style="display:inline;">FAQ & Troubleshooting</h1></summary>
+<summary><h1 style="display:inline; margin:0;">FAQ & Troubleshooting</h1></summary>
 
 <br>
 

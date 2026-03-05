@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD004 MD005 MD007 MD009 MD012 MD013 MD029 MD030 MD031 MD032 MD033 MD036 MD040 MD041 MD047 MD060 -->
+
 <p align="left" style="margin: 0 0 4px 0; line-height: 0;">
   <a href="README.md" style="text-decoration: none; border: 0;"><img src="assets/flags/pt-br.svg" width="30" height="18" alt="PT-BR" style="border: 0; vertical-align: middle;"></a>&nbsp;
   <a href="README.en.md" style="text-decoration: none; border: 0;"><img src="assets/flags/en.svg" width="30" height="18" alt="EN" style="border: 0; vertical-align: middle;"></a>&nbsp;
@@ -11,11 +13,9 @@
 
 <a id="es" style="text-decoration: none; color: black; font-size: 1.5em; cursor: default;"><b>ES</b></a>
 
-<p align="center">
-  <div>
-    <img src="assets/AristotelesEspanol.jpg" alt="Aristóteles (Español)" width="100%" style="border-radius: 10px; border: 1px solid #2a2a2a; display: block; margin: 0 auto;">
-  </div>
-</p>
+<div align="center">
+  <img src="assets/AristotelesEspanol.jpg" alt="Aristóteles (Español)" width="100%" style="border-radius: 10px; border: 1px solid #2a2a2a; display: block; margin: 0 auto;">
+</div>
 
 Proyecto epígrafe — conecta directamente con el propósito de Askesis como **rastreador de hábitos**: la consistencia y la excelencia se construyen a través de la práctica diaria, y los **hábitos** son el mecanismo central que la aplicación te ayuda a entrenar y rastrear.<br>
 
@@ -279,7 +279,7 @@ El icono de engranaje en la esquina superior permite configuración y gestión d
 <br>
 <a id="es-user-flows"></a>
 <details>
-<summary><h1 style="display:inline;">Flujos de Usuario Principales</h1>
+<summary><h1 style="display:inline; margin:0;">Flujos de Usuario Principales</h1>
 </summary>
 
 <br>
@@ -567,7 +567,7 @@ Conflictos: desencriptación remota, merge con LWW/deduplicación, persistencia 
 <br>
 <a id="es-deep-dive-technical"></a>
 <details>
-<summary><h1 style= "display:inline;">Inmersión Técnica Profunda</h1>
+<summary><h1 style="display:inline; margin:0;">Inmersión Técnica Profunda</h1>
 </summary>
 
 <br>
@@ -1003,7 +1003,7 @@ La visión para Askesis es expandir su presencia nativa mientras mantiene la bas
 
 <a id="es-faq"></a>
 <details>
-<summary><h1 style="display:inline;">Preguntas Frecuentes y Solución de Problemas</h1></summary>
+<summary><h1 style="display:inline; margin:0;">Preguntas Frecuentes y Solución de Problemas</h1></summary>
 
 <br>
 
