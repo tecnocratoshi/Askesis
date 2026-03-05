@@ -13,8 +13,6 @@
   <img src="assets/header-badges.svg" alt="Insignias de Askesis" width="100%" style="display: block; margin-top: 2px;">
 </div>
 
-<p align="center" style="margin: 6px 0 0 0; font-size: 0.85em; opacity: 0.8;">Consejo: haz clic en el logo de arriba para abrir la app.</p>
-
 <a id="es" style="text-decoration: none; color: black; font-size: 1.5em; cursor: default;"><b>ES</b></a>
 
 <div align="center">
