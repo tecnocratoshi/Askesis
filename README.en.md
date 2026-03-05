@@ -420,7 +420,6 @@ Result:
 </details>
 
 <br>
-<br>
 <a id="en-platform"></a>
 <h1>Universal Platform and Sustainability</h1>
 
@@ -948,7 +947,7 @@ Note: with `CORS_STRICT=1`, the backend also allows the origin of the current Ve
 
 </details>
 
-<br><br>
+<br>
 
 <a id="en-debugging"></a>
 <h1>Debugging and Monitoring</h1>
@@ -1010,7 +1009,6 @@ The vision for Askesis is to expand its native presence while maintaining the un
 - **Greater technological sovereignty:** reduce external dependencies with self-hosted options (local LLM) and low-cost sustainable architecture.
   - **Local LLM Optional (Qwen small):** Self-hosted alternative to Gemini to reduce recurring cost and increase privacy control in compatible environments.
 
-<br>
 <br>
 
 <a id="en-faq"></a>
@@ -1302,7 +1300,6 @@ If the troubleshooting above didn't resolve:
 
 </details>
 
-<br>
 <br>
 
 <a id="en-contribute"></a>

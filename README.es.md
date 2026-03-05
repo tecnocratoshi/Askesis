@@ -421,7 +421,6 @@ Resultado:
 </details>
 
 <br>
-<br>
 <a id="es-platform"></a>
 <h1>Plataforma Universal y Sostenibilidad</h1>
 
@@ -945,7 +944,7 @@ Nota: con `CORS_STRICT=1`, el backend también permite el origen del deploy actu
 
 </details>
 
-<br><br>
+<br>
 
 <a id="es-debugging"></a>
 <h1>Depuración y Monitoreo</h1>
@@ -1000,7 +999,6 @@ La visión para Askesis es expandir su presencia nativa mientras mantiene la bas
 - **Mayor soberanía tecnológica:** reducir dependencias externas con opciones auto-hospedadas (LLM local) y arquitectura sostenible de bajo costo.
   - **LLM Local Opcional (Qwen small):** Alternativa auto-hospedada a Gemini para reducir costo recurrente y aumentar control de privacidad en entornos compatibles.
 
-<br>
 <br>
 
 <a id="es-faq"></a>
@@ -1277,7 +1275,6 @@ Si la solución de problemas arriba no resolvió:
 
 </details>
 
-<br>
 <br>
 
 <a id="es-contribute"></a>

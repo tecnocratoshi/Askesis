@@ -421,7 +421,6 @@ Resultado:
 </details>
 
 <br>
-<br>
 <a id="pt-plataforma"></a>
 <h1>Plataforma Universal e Sustentabilidade</h1>
 
@@ -945,8 +944,7 @@ Observação: com `CORS_STRICT=1`, o backend também permite a origem do própri
 
 </details>
 
-<br><br>
-
+<br>
 <a id="pt-debugging"></a>
 <h1>Debugging e Monitoramento</h1>
 
@@ -1002,7 +1000,6 @@ A visão para o Askesis é expandir sua presença nativa mantendo a base de cód
 - **Maior soberania tecnológica:** reduzir dependências externas com opções self-hosted (LLM local) e arquitetura sustentável de baixo custo.
   - **LLM Local Opcional (Qwen small):** Alternativa self-hosted ao Gemini para reduzir custo recorrente e aumentar controle de privacidade em ambientes compatíveis.
 
-<br>
 <br>
 
 <a id="pt-faq"></a>
@@ -1279,7 +1276,6 @@ Se o troubleshooting acima não resolveu:
 
 </details>
 
-<br>
 <br>
 
 <a id="pt-contribuir"></a>
