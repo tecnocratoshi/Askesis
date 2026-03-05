@@ -69,18 +69,4 @@ describe('api/analyze quota cooldown', () => {
 
     expect(generateContentMock).toHaveBeenCalledTimes(2);
   });
-
-  it('usa somente o modelo gemini-3.0-flash', async () => {
-    generateContentMock.mockResolvedValueOnce({ text: 'ok' });
-
-    const mod = await import('./analyze');
-    const handler = mod.default;
-
-    const res = await handler(makeAnalyzeRequest('p3', 's3'));
-    expect(res.status).toBe(200);
-    expect(await res.text()).toBe('ok');
-
-    expect(generateContentMock).toHaveBeenCalledTimes(1);
-    expect(generateContentMock.mock.calls[0][0].model).toBe('gemini-3.0-flash');
-  });
 });

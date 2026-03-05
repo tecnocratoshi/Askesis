@@ -41,7 +41,8 @@ function getCorsHeaders(req: Request): Record<string, string> {
 
 // ROBUSTNESS: Support both standard naming conventions
 const API_KEY = process.env.API_KEY || process.env.GEMINI_API_KEY;
-const MODEL_NAME = 'gemini-3.0-flash';
+// MODEL UPDATE: Use supported Gemini 3 model.
+const MODEL_NAME = 'gemini-3-flash-preview';
 
 let aiClient: GoogleGenAI | null = null;
 let aiQuotaCooldownUntil = 0;
@@ -196,7 +197,7 @@ export default async function handler(req: Request) {
             aiClient.models.generateContent({
                 model: MODEL_NAME,
                 contents: prompt,
-                config: {
+                config: { 
                     systemInstruction,
                     temperature: 0.7,
                 },
