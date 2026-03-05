@@ -41,8 +41,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
 
 // ROBUSTNESS: Support both standard naming conventions
 const API_KEY = process.env.API_KEY || process.env.GEMINI_API_KEY;
-const MODEL_NAME = process.env.GEMINI_MODEL || process.env.AI_MODEL || 'gemini-3.0-flash';
-const MODEL_FALLBACKS = ['gemini-2.0-flash-lite', 'gemini-1.5-flash'];
+const MODEL_NAME = 'gemini-3.0-flash';
 
 let aiClient: GoogleGenAI | null = null;
 let aiQuotaCooldownUntil = 0;
@@ -92,10 +91,6 @@ type ErrorLike = {
     code?: number | string;
 };
 
-type GenerateContentResult = {
-    text?: string;
-};
-
 function getErrorMessage(error: unknown): string {
     if (error instanceof Error) return error.message;
     if (typeof error === 'string') return error;
@@ -108,37 +103,6 @@ function getErrorStatus(error: unknown): number {
     const maybeStatus = (error as ErrorLike).status ?? (error as ErrorLike).code;
     const parsed = Number(maybeStatus);
     return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function isModelNotFoundError(error: unknown): boolean {
-    const status = getErrorStatus(error);
-    const message = getErrorMessage(error).toLowerCase();
-    return status === 404 && (message.includes('not found') || message.includes('is not supported'));
-}
-
-async function generateWithModelFallback(prompt: string, systemInstruction: string): Promise<GenerateContentResult> {
-    if (!aiClient) aiClient = new GoogleGenAI({ apiKey: API_KEY! });
-
-    const modelsToTry = [MODEL_NAME, ...MODEL_FALLBACKS.filter(model => model !== MODEL_NAME)];
-    let lastError: unknown = null;
-
-    for (const model of modelsToTry) {
-        try {
-            return await aiClient.models.generateContent({
-                model,
-                contents: prompt,
-                config: {
-                    systemInstruction,
-                    temperature: 0.7,
-                },
-            });
-        } catch (error: unknown) {
-            lastError = error;
-            if (!isModelNotFoundError(error)) throw error;
-        }
-    }
-
-    throw lastError ?? new Error('No supported AI model available');
 }
 
 export default async function handler(req: Request) {
@@ -216,6 +180,8 @@ export default async function handler(req: Request) {
             });
         }
 
+        if (!aiClient) aiClient = new GoogleGenAI({ apiKey: API_KEY });
+
         // PROTEÇÃO CONTRA ZUMBIFICAÇÃO: Timeout de execução da IA
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -227,7 +193,14 @@ export default async function handler(req: Request) {
         });
 
         const geminiResponse = await Promise.race([
-            generateWithModelFallback(prompt, systemInstruction),
+            aiClient.models.generateContent({
+                model: MODEL_NAME,
+                contents: prompt,
+                config: {
+                    systemInstruction,
+                    temperature: 0.7,
+                },
+            }),
             timeoutPromise
         ]);
 
