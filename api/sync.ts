@@ -1,272 +1,206 @@
-
 /**
  * @license
  * SPDX-License-Identifier: MIT
 */
 
-import { Redis } from '@upstash/redis';
-import {
-    checkRateLimit,
-    getClientIp,
-    getCorsOrigin as getCorsOriginFromRules,
-    isOriginAllowed,
-    parseAllowedOrigins,
-    parsePositiveInt
-} from './_httpSecurity';
+import { ui } from "../render/ui";
+import { t } from "../i18n";
+import { downloadRemoteState, syncStateWithCloud, setSyncStatus, clearSyncHashCache, addSyncLog } from "../services/cloud";
+import { loadState, saveState } from "../services/persistence";
+import { renderApp, openSyncDebugModal, clearHabitDomCache } from "../render";
+import { showConfirmationModal } from "../render/modals";
+import { storeKey, clearKey, hasLocalSyncKey, getSyncKey, isValidKeyFormat } from "../services/api";
+import { generateUUID } from "../utils";
+import { SYNC_ENABLE_RETRY_MS, SYNC_COPY_FEEDBACK_MS, SYNC_INPUT_FOCUS_MS } from "../constants";
+import { getPersistableState, state, clearActiveHabitsCache } from "../state";
+import { mergeStates } from "../services/dataMerge";
+import { escapeHTML } from "../utils";
 
-export const config = {
-  runtime: 'edge',
-};
 
-const SHOULD_LOG = typeof process !== 'undefined' && !!process.env && process.env.NODE_ENV !== 'production';
-const logger = {
-        error: (message: string, error?: unknown) => {
-                if (!SHOULD_LOG) return;
-                if (error !== undefined) console.error(message, error);
-                else console.error(message);
-        }
-};
-
-const LUA_SHARDED_UPDATE = `
-local key = KEYS[1]
-local newTs = tonumber(ARGV[1])
-local shardsJson = ARGV[2]
-
-local currentTs = tonumber(redis.call("HGET", key, "lastModified") or 0)
-
-if not newTs then
-    return { "ERROR", "INVALID_TS" }
-end
-
--- Optimistic Concurrency Control
-if newTs < currentTs then
-    local all = redis.call("HGETALL", key)
-    return { "CONFLICT", all }
-end
-
--- Robust JSON Parsing
-local status, shards = pcall(cjson.decode, shardsJson)
-if not status then
-    return { "ERROR", "INVALID_JSON" }
-end
-
--- Atomic Shard Update
-for shardName, shardData in pairs(shards) do
-    if type(shardData) == "string" then
-        redis.call("HSET", key, shardName, shardData)
-    else
-        return { "ERROR", "INVALID_SHARD_TYPE", shardName, type(shardData) }
-    end
-end
-
-redis.call("HSET", key, "lastModified", newTs)
-return { "OK" }
-`;
-
-const MAX_SHARDS_PER_REQUEST = 256;
-const MAX_SHARD_VALUE_BYTES = 512 * 1024; // 512KB por shard
-const MAX_TOTAL_SHARDS_BYTES = 4 * 1024 * 1024; // 4MB total
-
-const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
-const CORS_STRICT = process.env.CORS_STRICT === '1';
-const ALLOW_LEGACY_SYNC_AUTH = process.env.ALLOW_LEGACY_SYNC_AUTH === '1';
-const SYNC_HASH_REGEX = /^[a-f0-9]{64}$/i;
-
-function getCorsOrigin(req: Request): string {
-    return getCorsOriginFromRules(req, ALLOWED_ORIGINS);
-}
-
-function getResponseHeaders(req: Request): Record<string, string> {
-    const allowHeaders = ['Content-Type', 'X-Sync-Key-Hash'];
-    if (ALLOW_LEGACY_SYNC_AUTH) allowHeaders.push('Authorization');
-
-    return {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': getCorsOrigin(req),
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': allowHeaders.join(', '),
-        'Vary': 'Origin'
-    };
-}
-
-async function sha256(message: string) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-const SYNC_RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.SYNC_RATE_LIMIT_WINDOW_MS, 60_000);
-const SYNC_RATE_LIMIT_MAX_REQUESTS = parsePositiveInt(process.env.SYNC_RATE_LIMIT_MAX_REQUESTS, 120);
-const SYNC_RATE_LIMIT_DISABLED = process.env.NODE_ENV === 'test' || process.env.DISABLE_RATE_LIMIT === '1';
-
-type ErrorLike = { message?: string };
-
-type SyncPostBody = {
-    lastModified?: unknown;
-    shards?: Record<string, unknown>;
-};
-
-function getErrorMessage(error: unknown): string {
-    if (error instanceof Error) return error.message;
-    if (typeof error === 'string') return error;
-    if (error && typeof error === 'object' && typeof (error as ErrorLike).message === 'string') return (error as ErrorLike).message as string;
-    return 'Internal Server Error';
-}
-
-async function extractKeyHash(req: Request): Promise<string | null> {
-    const directHash = req.headers.get('x-sync-key-hash')?.trim() || '';
-    if (SYNC_HASH_REGEX.test(directHash)) return directHash;
-
-    if (!ALLOW_LEGACY_SYNC_AUTH) return null;
-
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-
-    const rawKey = authHeader.replace('Bearer ', '').trim();
-    if (rawKey.length < 8) return null;
-    return sha256(rawKey);
-}
-
-export default async function handler(req: Request) {
-    const reqOrigin = req.headers.get('origin') || '';
-    const HEADERS_BASE = getResponseHeaders(req);
-    if (CORS_STRICT && ALLOWED_ORIGINS.length > 0 && reqOrigin && !isOriginAllowed(req, reqOrigin, ALLOWED_ORIGINS)) {
-        return new Response(JSON.stringify({ error: 'Origin not allowed', code: 'CORS_DENIED' }), {
-            status: 403,
-            headers: HEADERS_BASE
-        });
+function showView(view: 'inactive' | 'enterKey' | 'displayKey' | 'active') {
+    ui.syncInactiveView.style.display = 'none';
+    ui.syncEnterKeyView.style.display = 'none';
+    ui.syncDisplayKeyView.style.display = 'none';
+    ui.syncActiveView.style.display = 'none';
+    if (ui.syncErrorMsg) ui.syncErrorMsg.classList.add('hidden');
+    switch (view) {
+        case 'inactive': ui.syncInactiveView.style.display = 'flex'; break;
+        case 'enterKey': ui.syncEnterKeyView.style.display = 'flex'; break;
+        case 'displayKey': 
+            ui.syncDisplayKeyView.style.display = 'flex'; 
+            const context = ui.syncDisplayKeyView.dataset.context;
+            ui.keySavedBtn.textContent = (context === 'view') ? t('closeButton') : t('syncKeySaved');
+            break;
+        case 'active': ui.syncActiveView.style.display = 'flex'; break;
     }
+}
 
-    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: HEADERS_BASE });
+function _toggleButtons(buttons: HTMLButtonElement[], disabled: boolean) {
+    for (let i = 0; i < buttons.length; i++) { buttons[i].disabled = disabled; }
+}
 
-    const dbUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-    const dbToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-
-    if (!dbUrl || !dbToken) {
-         return new Response(JSON.stringify({ error: 'Server Config Error' }), { status: 500, headers: HEADERS_BASE });
-    }
-
-    const kv = new Redis({ url: dbUrl, token: dbToken });
-
+async function _processKey(key: string) {
+    const buttons = [ui.submitKeyBtn, ui.cancelEnterKeyBtn];
+    _toggleButtons(buttons, true);
+    if (ui.syncErrorMsg) ui.syncErrorMsg.classList.add('hidden');
+    const originalBtnText = ui.submitKeyBtn.textContent;
+    ui.submitKeyBtn.textContent = t('syncVerifying');
+    const originalKey = getSyncKey();
+    
     try {
-        const keyHash = await extractKeyHash(req);
+        clearSyncHashCache();
+        storeKey(key);
+        
+        const cloudState = await downloadRemoteState();
 
-        if (!keyHash || !SYNC_HASH_REGEX.test(keyHash)) {
-            return new Response(JSON.stringify({ error: 'Auth Required' }), { status: 401, headers: HEADERS_BASE });
-        }
+        // SEGURANÇA: Só carregamos se houver hábitos na nuvem.
+        // Se a nuvem estiver vazia, forçamos um PUSH dos dados locais para não perder o progresso atual.
+        if (cloudState && cloudState.habits && cloudState.habits.length > 0) {
+            addSyncLog("Dados encontrados na nuvem. Mesclando...", "info");
+            const localState = getPersistableState();
+            const mergedState = await mergeStates(localState, cloudState, {
+                onDedupCandidate: ({ identity, winnerHabit, loserHabit }) => {
+                    const winnerName = escapeHTML((winnerHabit.scheduleHistory?.[winnerHabit.scheduleHistory.length - 1]?.name
+                        || winnerHabit.scheduleHistory?.[winnerHabit.scheduleHistory.length - 1]?.nameKey
+                        || identity
+                        || ''));
+                    const loserName = escapeHTML((loserHabit.scheduleHistory?.[loserHabit.scheduleHistory.length - 1]?.name
+                        || loserHabit.scheduleHistory?.[loserHabit.scheduleHistory.length - 1]?.nameKey
+                        || identity
+                        || ''));
+                    const html = `
+                        <p>Foram detectados dois hábitos potencialmente iguais durante a sincronização.</p>
+                        <div style="margin:10px 0; padding:10px; border:1px solid var(--border-color); border-radius:10px;">
+                            <div><strong>Hábito A:</strong> “${winnerName}”</div>
+                            <div style="opacity:0.7; font-size:12px; margin-top:4px;">ID: ${escapeHTML(winnerHabit.id)}</div>
+                            <hr style="border:none; border-top:1px solid var(--border-color); margin:10px 0;" />
+                            <div><strong>Hábito B:</strong> “${loserName}”</div>
+                            <div style="opacity:0.7; font-size:12px; margin-top:4px;">ID: ${escapeHTML(loserHabit.id)}</div>
+                        </div>
+                        <p style="margin-top:10px;">Consolidar irá mesclar históricos e remapear dados do calendário. Se você não tiver certeza, escolha manter separados.</p>
+                    `;
 
-        const ip = getClientIp(req);
-        const limiter = await checkRateLimit({
-            namespace: 'sync',
-            key: `${keyHash}:${ip}:${req.method}`,
-            windowMs: SYNC_RATE_LIMIT_WINDOW_MS,
-            maxRequests: SYNC_RATE_LIMIT_MAX_REQUESTS,
-            disabled: SYNC_RATE_LIMIT_DISABLED,
-            localMaxEntries: 2000
-        });
-        if (limiter.limited) {
-            return new Response(JSON.stringify({ error: 'Too Many Requests', code: 'RATE_LIMITED' }), {
-                status: 429,
-                headers: {
-                    ...HEADERS_BASE,
-                    'Retry-After': String(limiter.retryAfterSec)
+                    return new Promise<'deduplicate' | 'keep_separate'>((resolve) => {
+                        showConfirmationModal(
+                            html,
+                            () => resolve('deduplicate'),
+                            {
+                                title: 'Consolidar hábitos?',
+                                confirmText: 'Consolidar',
+                                allowHtml: true,
+                                onEdit: () => resolve('keep_separate'),
+                                editText: 'Manter separados',
+                                onCancel: () => resolve('keep_separate')
+                            }
+                        );
+                    });
                 }
             });
+            await loadState(mergedState);
+            clearActiveHabitsCache();
+            clearHabitDomCache();
+            state.uiDirtyState.habitListStructure = state.uiDirtyState.calendarVisuals = state.uiDirtyState.chartData = true;
+            await saveState(true);
+            renderApp();
+            setSyncStatus('syncSynced');
+            syncStateWithCloud(mergedState, true);
+        } else {
+            addSyncLog("Cofre nuvem vazio. Inicializando com dados locais.", "info");
+            setSyncStatus('syncSynced');
+            syncStateWithCloud(getPersistableState(), true);
         }
-        
-        const dataKey = `sync_v3:${keyHash}`;
-
-        if (req.method === 'GET') {
-            const allData = await kv.hgetall(dataKey);
-            if (!allData) return new Response('null', { status: 200, headers: HEADERS_BASE });
-            return new Response(JSON.stringify(allData), { status: 200, headers: HEADERS_BASE });
+        _refreshViewState(); 
+    } catch (error: any) {
+        if (originalKey) storeKey(originalKey);
+        else clearKey();
+        if (ui.syncErrorMsg) {
+            let msg = error.message || "Erro desconhecido";
+            if (msg.includes('401') || msg.includes('Auth')) msg = "Chave Inválida ou Não Encontrada";
+            ui.syncErrorMsg.textContent = msg;
+            ui.syncErrorMsg.classList.remove('hidden');
         }
-
-        if (req.method === 'POST') {
-            const body = await req.json() as SyncPostBody;
-            const { lastModified, shards } = body;
-
-            if (lastModified === undefined) {
-                return new Response(JSON.stringify({ error: 'Missing lastModified' }), { status: 400, headers: HEADERS_BASE });
-            }
-            if (!shards || typeof shards !== 'object' || Array.isArray(shards)) {
-                return new Response(JSON.stringify({ error: 'Invalid or missing shards' }), { status: 400, headers: HEADERS_BASE });
-            }
-
-            const shardEntries = Object.entries(shards);
-            if (shardEntries.length > MAX_SHARDS_PER_REQUEST) {
-                return new Response(JSON.stringify({ error: 'Too many shards', code: 'SHARD_LIMIT_EXCEEDED' }), { status: 413, headers: HEADERS_BASE });
-            }
-
-            const lastModifiedNum = Number(lastModified);
-            if (!Number.isFinite(lastModifiedNum)) {
-                return new Response(JSON.stringify({ error: 'Invalid lastModified', code: 'INVALID_TS' }), { status: 400, headers: HEADERS_BASE });
-            }
-
-            let totalBytes = 0;
-            for (const [shardName, shardValue] of shardEntries) {
-                if (typeof shardValue !== 'string') {
-                    return new Response(JSON.stringify({ error: 'Invalid shard type', code: 'INVALID_SHARD_TYPE', detail: shardName, detailType: typeof shardValue }), { status: 400, headers: HEADERS_BASE });
-                }
-                const shardBytes = new TextEncoder().encode(shardValue).length;
-                if (shardBytes > MAX_SHARD_VALUE_BYTES) {
-                    return new Response(JSON.stringify({ error: 'Shard too large', code: 'SHARD_TOO_LARGE', detail: shardName }), { status: 413, headers: HEADERS_BASE });
-                }
-                totalBytes += shardBytes;
-                if (totalBytes > MAX_TOTAL_SHARDS_BYTES) {
-                    return new Response(JSON.stringify({ error: 'Payload too large', code: 'PAYLOAD_TOO_LARGE' }), { status: 413, headers: HEADERS_BASE });
-                }
-            }
-
-            let result: unknown = null;
-            for (let attempt = 0; attempt < 2; attempt++) {
-                result = await kv.eval(LUA_SHARDED_UPDATE, [dataKey], [String(lastModifiedNum), JSON.stringify(shards)]);
-                if (Array.isArray(result)) break;
-                await sleep(50);
-            }
-
-            if (!Array.isArray(result)) {
-                return new Response(JSON.stringify({
-                    error: 'Atomic sync unavailable',
-                    code: 'LUA_UNAVAILABLE',
-                    detail: 'Non-atomic fallback disabled to prevent shard desynchronization'
-                }), { status: 503, headers: HEADERS_BASE });
-            }
-            
-            if (result[0] === 'OK') return new Response('{"success":true}', { status: 200, headers: HEADERS_BASE });
-
-            if (typeof result[0] === 'number') {
-                return new Response(JSON.stringify({
-                    error: 'Atomic sync unavailable',
-                    code: 'LUA_UNAVAILABLE',
-                    detail: 'Lua engine returned invalid format'
-                }), { status: 503, headers: HEADERS_BASE });
-            }
-            
-            if (result[0] === 'CONFLICT') {
-                // Lua returns a flat array [key, val, key, val...] for HGETALL
-                const rawList = Array.isArray(result[1]) ? (result[1] as string[]) : [];
-                const conflictShards: Record<string, string> = {};
-                for (let i = 0; i < rawList.length; i += 2) {
-                    conflictShards[rawList[i]] = rawList[i+1];
-                }
-                return new Response(JSON.stringify(conflictShards), { status: 409, headers: HEADERS_BASE });
-            }
-
-            const code = typeof result[1] === 'string' ? result[1] : 'UNKNOWN';
-            const detail = typeof result[2] === 'string' ? result[2] : undefined;
-            const detailType = typeof result[3] === 'string' ? result[3] : undefined;
-            return new Response(JSON.stringify({ error: 'Lua Execution Error', code, detail, detailType, raw: result }), { status: 400, headers: HEADERS_BASE });
-        }
-
-        return new Response(null, { status: 405 });
-    } catch (error: unknown) {
-        logger.error('KV Error:', error);
-        return new Response(JSON.stringify({ error: getErrorMessage(error) }), { status: 500, headers: HEADERS_BASE });
+        setSyncStatus('syncError');
+        addSyncLog(`Falha na ativação: ${error.message}`, "error");
+    } finally {
+        ui.submitKeyBtn.textContent = originalBtnText;
+        _toggleButtons(buttons, false);
     }
+}
+
+const _handleEnableSync = () => {
+    try {
+        ui.enableSyncBtn.disabled = true;
+        if (ui.syncErrorMsg) ui.syncErrorMsg.classList.add('hidden');
+        const newKey = generateUUID();
+        clearSyncHashCache();
+        storeKey(newKey);
+        setSyncStatus('syncSynced');
+        ui.syncKeyText.textContent = newKey;
+        ui.syncDisplayKeyView.dataset.context = 'setup';
+        showView('displayKey');
+        syncStateWithCloud(getPersistableState(), true);
+        setTimeout(() => ui.enableSyncBtn.disabled = false, SYNC_ENABLE_RETRY_MS);
+    } catch (e: any) {
+        ui.enableSyncBtn.disabled = false;
+        if (ui.syncErrorMsg) {
+            ui.syncErrorMsg.textContent = e.message || "Erro ao gerar chave";
+            ui.syncErrorMsg.classList.remove('hidden');
+        }
+    }
+};
+
+const _handleEnterKeyView = () => { showView('enterKey'); setTimeout(() => ui.syncKeyInput.focus(), SYNC_INPUT_FOCUS_MS); };
+const _handleCancelEnterKey = () => { ui.syncKeyInput.value = ''; if (ui.syncErrorMsg) ui.syncErrorMsg.classList.add('hidden'); _refreshViewState(); };
+const _handleSubmitKey = () => {
+    const key = ui.syncKeyInput.value.trim();
+    if (!key) return;
+    if (ui.syncErrorMsg) ui.syncErrorMsg.classList.add('hidden');
+    if (!isValidKeyFormat(key)) {
+        showConfirmationModal(t('confirmInvalidKeyBody'), () => _processKey(key), { title: t('confirmInvalidKeyTitle'), confirmText: t('confirmButton'), cancelText: t('cancelButton') });
+    } else { _processKey(key); }
+};
+const _handleKeySaved = () => showView('active');
+const _handleCopyKey = () => {
+    const key = ui.syncKeyText.textContent;
+    if(key) {
+        navigator.clipboard.writeText(key).then(() => {
+            const originalText = ui.copyKeyBtn.textContent || '';
+            ui.copyKeyBtn.textContent = '✓';
+            setTimeout(() => { ui.copyKeyBtn.textContent = originalText; }, SYNC_COPY_FEEDBACK_MS);
+        }).catch(() => {
+            showConfirmationModal(`Copie manualmente: ${key}`, () => {}, {
+                title: t('syncKeyLabel'),
+                confirmText: t('closeButton'),
+                hideCancel: true
+            });
+        });
+    }
+};
+const _handleViewKey = () => { const key = getSyncKey(); if (key) { ui.syncKeyText.textContent = key; ui.syncDisplayKeyView.dataset.context = 'view'; showView('displayKey'); } };
+const _handleDisableSync = () => { showConfirmationModal(t('confirmSyncDisable'), () => { clearKey(); setSyncStatus('syncInitial'); showView('inactive'); }, { title: t('syncDisableTitle'), confirmText: t('syncDisableConfirm'), confirmButtonStyle: 'danger' }); };
+const _handleDiagnostics = (e: Event) => { openSyncDebugModal(); };
+
+function _refreshViewState() {
+    const hasKey = hasLocalSyncKey();
+    if (hasKey) { 
+        showView('active'); 
+        if (state.syncState === 'syncInitial') { setSyncStatus('syncSynced'); } 
+    }
+    else { 
+        showView('inactive'); 
+        setSyncStatus('syncInitial'); 
+    }
+}
+
+export function initSync() {
+    if (ui.enableSyncBtn) ui.enableSyncBtn.addEventListener('click', _handleEnableSync);
+    if (ui.enterKeyViewBtn) ui.enterKeyViewBtn.addEventListener('click', _handleEnterKeyView);
+    if (ui.cancelEnterKeyBtn) ui.cancelEnterKeyBtn.addEventListener('click', _handleCancelEnterKey);
+    if (ui.submitKeyBtn) ui.submitKeyBtn.addEventListener('click', _handleSubmitKey);
+    if (ui.keySavedBtn) ui.keySavedBtn.addEventListener('click', _handleKeySaved);
+    if (ui.copyKeyBtn) ui.copyKeyBtn.addEventListener('click', _handleCopyKey);
+    if (ui.viewKeyBtn) ui.viewKeyBtn.addEventListener('click', _handleViewKey);
+    if (ui.disableSyncBtn) ui.disableSyncBtn.addEventListener('click', _handleDisableSync);
+    if (ui.syncStatus) ui.syncStatus.addEventListener('pointerdown', _handleDiagnostics);
+    _refreshViewState();
 }
