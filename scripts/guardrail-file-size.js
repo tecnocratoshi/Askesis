@@ -13,8 +13,6 @@ const DEFAULT_MAX_LINES = 400;
 // Temporary exceptions for known large modules under refactor.
 // Keep this list small and reduce values over time.
 const EXCEPTION_MAX_LINES = {
-  'services/habitActions.ts': 1300,
-  'services/dataMerge.ts': 900,
   'i18n.ts': 700,
   'state.ts': 700,
   'listeners/modals.ts': 700,
