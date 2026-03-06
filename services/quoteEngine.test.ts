@@ -205,5 +205,65 @@ describe('🏛️ Motor de Citações Estoicas (quoteEngine.ts)', () => {
             const result = selectBestQuote(quotes, today);
             expect(result.id).toBe('sticky');
         });
+
+        it('deve ignorar stickiness quando há major shift para urgencia', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-03-06T20:30:00Z'));
+
+            // Um habito pendente garante total>0 e completion/snooze baixos.
+            createTestHabit({ name: 'Pendencia', time: 'Morning' });
+
+            const today = new Date().toISOString().split('T')[0];
+            state.quoteState = {
+                currentId: 'sticky',
+                displayedAt: Date.now() - 500,
+                lockedContext: `${today}-morning-neutral-none-none`
+            };
+
+            const quotes = [
+                createMockQuote('sticky', { tags: ['truth'] }),
+                createMockQuote('urgent', { tags: ['urgency'] })
+            ];
+
+            const result = selectBestQuote(quotes, today);
+            expect(result.id).toBe('urgent');
+
+            vi.useRealTimers();
+        });
+    });
+
+    describe('Estados contextuais adicionais', () => {
+        it('deve priorizar tag de urgencia em noite improdutiva (estado urgency)', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-03-06T20:00:00Z'));
+
+            createTestHabit({ name: 'H1', time: 'Morning' });
+            createTestHabit({ name: 'H2', time: 'Afternoon' });
+
+            const today = new Date().toISOString().split('T')[0];
+            const quotes = [
+                createMockQuote('q_urgency', { tags: ['urgency', 'action'] }),
+                createMockQuote('q_neutral', { tags: ['truth'] })
+            ];
+
+            const result = selectBestQuote(quotes, today);
+            expect(result.id).toBe('q_urgency');
+
+            vi.useRealTimers();
+        });
+
+        it('nao deve mutar quoteState para datas historicas', () => {
+            const previous = {
+                currentId: 'existing',
+                displayedAt: Date.now(),
+                lockedContext: 'ctx'
+            };
+            state.quoteState = previous;
+
+            const quotes = [createMockQuote('q1'), createMockQuote('q2')];
+            selectBestQuote(quotes, '2024-01-15');
+
+            expect(state.quoteState).toEqual(previous);
+        });
     });
 });

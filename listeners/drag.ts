@@ -171,6 +171,73 @@ function _resolveDropZone(x: number, y: number): HTMLElement | null {
     return wrapper ? wrapper.querySelector<HTMLElement>(DOM_SELECTORS.DROP_ZONE) : null;
 }
 
+function _isValidDropTarget(targetTime: TimeOfDay): boolean {
+    const isSameGroup = targetTime === DragMachine.sourceTime;
+    if (isSameGroup) return true;
+    return !DragMachine.cachedSchedule?.includes(targetTime);
+}
+
+function _resolveTargetCard(dropZone: HTMLElement, y: number): { targetCard: HTMLElement | null; insertPos: 'before' | 'after' | null } {
+    const afterElement = getDragAfterElement(dropZone, y);
+    if (afterElement) {
+        return { targetCard: afterElement, insertPos: 'before' };
+    }
+
+    // FIX [2025-06-08]: Robust Fallback for Last Element
+    // CSS :last-child fails if the last element is the dragging one (which is structurally the last child).
+    // We use JS filtering to get the true last visual element.
+    const allCards = Array.from(dropZone.querySelectorAll(DOM_SELECTORS.HABIT_CARD));
+    const staticCards = allCards.filter(c => !c.classList.contains(CSS_CLASSES.DRAGGING));
+    const lastChild = staticCards.length > 0 ? staticCards[staticCards.length - 1] as HTMLElement : null;
+
+    if (lastChild) {
+        return { targetCard: lastChild, insertPos: 'after' };
+    }
+
+    return { targetCard: null, insertPos: null };
+}
+
+function _setNoDropTarget() {
+    DragMachine.targetZone = null;
+    DragMachine.targetCard = null;
+    DragMachine.insertPos = null;
+    DragMachine.isValidDrop = false;
+}
+
+function _buildReorderInfo(): { id: string; pos: 'before' | 'after' } | undefined {
+    if (!DragMachine.targetCard || !DragMachine.targetCard.dataset.habitId) return undefined;
+    return {
+        id: DragMachine.targetCard.dataset.habitId,
+        pos: DragMachine.insertPos || 'after'
+    };
+}
+
+function _executeDropAction(): boolean {
+    if (!DragMachine.isValidDrop || !DragMachine.targetZone || !DragMachine.sourceId || !DragMachine.sourceTime) {
+        return false;
+    }
+
+    const targetTime = DragMachine.targetZone.dataset.time as TimeOfDay;
+    const isReorder = DragMachine.sourceTime === targetTime;
+    const reorderInfo = _buildReorderInfo();
+
+    if (isReorder) {
+        if (!reorderInfo) return false;
+        triggerHaptic('medium');
+        reorderHabit(DragMachine.sourceId, reorderInfo.id, reorderInfo.pos);
+        return true;
+    }
+
+    triggerHaptic('medium');
+    handleHabitDrop(
+        DragMachine.sourceId,
+        DragMachine.sourceTime,
+        targetTime,
+        reorderInfo
+    );
+    return true;
+}
+
 // --- PHYSICS LOOP ---
 
 function _computeScrollSpeed(y: number): number {
@@ -313,89 +380,33 @@ const _onPointerMove = (e: PointerEvent) => {
     const dropZone = _resolveDropZone(clientX, clientY);
 
     if (!dropZone) {
-        DragMachine.targetZone = null;
-        DragMachine.isValidDrop = false;
+        _setNoDropTarget();
         return;
     }
 
     const targetTime = dropZone.dataset.time as TimeOfDay;
-    const isSameGroup = targetTime === DragMachine.sourceTime;
-    
-    // Check if habit already exists in target time (unless it's the same group - reordering)
-    let isValid = true;
-    if (!isSameGroup && DragMachine.cachedSchedule?.includes(targetTime)) {
-        isValid = false;
-    }
+    const isValid = _isValidDropTarget(targetTime);
 
     DragMachine.targetZone = dropZone;
     DragMachine.isValidDrop = isValid;
 
     if (isValid) {
-        const afterElement = getDragAfterElement(dropZone, clientY);
-        if (afterElement) {
-            DragMachine.targetCard = afterElement;
-            DragMachine.insertPos = 'before';
-        } else {
-            // FIX [2025-06-08]: Robust Fallback for Last Element
-            // CSS :last-child fails if the last element is the dragging one (which is structurally the last child).
-            // We use JS filtering to get the true last visual element.
-            const allCards = Array.from(dropZone.querySelectorAll(DOM_SELECTORS.HABIT_CARD));
-            const staticCards = allCards.filter(c => !c.classList.contains(CSS_CLASSES.DRAGGING));
-            const lastChild = staticCards.length > 0 ? staticCards[staticCards.length - 1] as HTMLElement : null;
-            
-            if (lastChild) {
-                DragMachine.targetCard = lastChild;
-                DragMachine.insertPos = 'after';
-            } else {
-                DragMachine.targetCard = null;
-                DragMachine.insertPos = null;
-            }
-        }
+        const target = _resolveTargetCard(dropZone, clientY);
+        DragMachine.targetCard = target.targetCard;
+        DragMachine.insertPos = target.insertPos;
     } else {
         DragMachine.targetCard = null;
+        DragMachine.insertPos = null;
     }
 };
 
 const _onPointerUp = (e: PointerEvent) => {
     if (!DragMachine.isActive) return;
-    
-    let dropSuccess = false;
 
-    if (DragMachine.isValidDrop && DragMachine.targetZone && DragMachine.sourceId && DragMachine.sourceTime) {
-        const targetTime = DragMachine.targetZone.dataset.time as TimeOfDay;
-        const isReorder = DragMachine.sourceTime === targetTime;
-        
-        let reorderInfo = undefined;
-        if (DragMachine.targetCard && DragMachine.targetCard.dataset.habitId) {
-            reorderInfo = {
-                id: DragMachine.targetCard.dataset.habitId,
-                pos: DragMachine.insertPos || 'after'
-            };
-        }
+    // SUCESSO: true apenas quando uma ação real foi disparada.
+    // FALHA/NO-OP: false restaura visibilidade imediata do card original.
+    const dropSuccess = _executeDropAction();
 
-        if (isReorder) {
-            if (reorderInfo) {
-                triggerHaptic('medium');
-                reorderHabit(DragMachine.sourceId, reorderInfo.id, reorderInfo.pos as 'before' | 'after');
-                // SUCESSO: Marcamos true apenas se uma ação real foi disparada para reconstruir a lista.
-                dropSuccess = true;
-            } else {
-                // FALHA/NO-OP: Tentou reordenar mas não encontrou alvo válido (ex: lista de 1 item, ou arrastou pra si mesmo).
-                // Marcamos false para remover a classe .dragging imediatamente e restaurar a visibilidade.
-                dropSuccess = false;
-            }
-        } else {
-            triggerHaptic('medium');
-            handleHabitDrop(
-                DragMachine.sourceId,
-                DragMachine.sourceTime,
-                targetTime,
-                reorderInfo
-            );
-            dropSuccess = true;
-        }
-    }
-    
     _forceReset(dropSuccess);
 };
 

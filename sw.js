@@ -30,11 +30,12 @@ try {
 
 const HTML_FALLBACK = '/index.html';
 const NETWORK_TIMEOUT_MS = 3000;
+const SW_CACHE_VERSION = 'v2';
 
 const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('Network Timeout')), ms));
 
 if (self.workbox) {
-    self.workbox.core.setCacheNameDetails({ prefix: 'askesis' });
+    self.workbox.core.setCacheNameDetails({ prefix: 'askesis', suffix: SW_CACHE_VERSION });
     self.workbox.core.skipWaiting();
     self.workbox.core.clientsClaim();
 
@@ -54,18 +55,18 @@ if (self.workbox) {
     self.workbox.routing.registerRoute(
         ({ request }) => request.mode === 'navigate',
         new self.workbox.strategies.NetworkFirst({
-            cacheName: 'pages',
+            cacheName: `pages-${SW_CACHE_VERSION}`,
             networkTimeoutSeconds: NETWORK_TIMEOUT_MS / 1000
         })
     );
 
     self.workbox.routing.registerRoute(
         ({ request }) => ['style', 'script', 'image', 'font'].includes(request.destination),
-        new self.workbox.strategies.StaleWhileRevalidate({ cacheName: 'assets' })
+        new self.workbox.strategies.StaleWhileRevalidate({ cacheName: `assets-${SW_CACHE_VERSION}` })
     );
 } else {
     // --- FALLBACK: Cache manual mínimo (sem Workbox) ---
-    const CACHE_NAME = 'askesis-fallback-v1';
+    const CACHE_NAME = `askesis-fallback-${SW_CACHE_VERSION}`;
     const CACHE_FILES = [
         '/',
         '/index.html',

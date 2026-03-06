@@ -20,6 +20,7 @@ import { DOM_SELECTORS, CSS_CLASSES } from '../render/constants';
 const GOAL_STEP = 5, MAX_GOAL = 9999;
 const SELECTOR = `${DOM_SELECTORS.HABIT_CONTENT_WRAPPER}, ${DOM_SELECTORS.GOAL_CONTROL_BTN}, ${DOM_SELECTORS.GOAL_VALUE_WRAPPER}, ${DOM_SELECTORS.SWIPE_DELETE_BTN}, ${DOM_SELECTORS.SWIPE_NOTE_BTN}, ${DOM_SELECTORS.EMPTY_GROUP_PLACEHOLDER}`;
 const KEYBOARD_NAV_SELECTOR = `${DOM_SELECTORS.HABIT_CONTENT_WRAPPER}, ${DOM_SELECTORS.EMPTY_GROUP_PLACEHOLDER}`;
+const goalAnimationCleanupTimers = new WeakMap<HTMLElement, number>();
 
 /**
  * Cria o efeito visual de ripple (onda) na posição do clique.
@@ -140,7 +141,16 @@ const _handleContainerClick = (e: MouseEvent) => {
             void (wrapper as HTMLElement).offsetWidth; // Force Reflow
             wrapper.classList.add(next > cur ? 'increase' : 'decrease');
             // Cleanup class to allow re-triggering later
-            setTimeout(() => wrapper.classList.remove('increase', 'decrease'), 700);
+            const wrapperEl = wrapper as HTMLElement;
+            const previousTimer = goalAnimationCleanupTimers.get(wrapperEl);
+            if (previousTimer !== undefined) {
+                window.clearTimeout(previousTimer);
+            }
+            const timerId = window.setTimeout(() => {
+                wrapperEl.classList.remove('increase', 'decrease');
+                goalAnimationCleanupTimers.delete(wrapperEl);
+            }, 700);
+            goalAnimationCleanupTimers.set(wrapperEl, timerId);
         }
 
         setGoalOverride(hId, state.selectedDate, t, next);
