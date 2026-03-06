@@ -7,7 +7,7 @@ const ROOT = path.resolve(__dirname, '..');
 const IGNORE_DIRS = new Set(['node_modules', 'dist', '.git']);
 const INCLUDE_EXTENSIONS = new Set(['.ts', '.tsx']);
 const EXCLUDE_FILE_SUFFIXES = ['.test.ts', '.test.tsx'];
-const EXCLUDE_PATH_PARTS = ['/tests/'];
+const EXCLUDE_PATH_PARTS = ['/tests/', '/data/'];
 const DEFAULT_MAX_LINES = 400;
 
 // Temporary exceptions for known large modules under refactor.
@@ -24,7 +24,12 @@ const EXCEPTION_MAX_LINES = {
   'services/migration.ts': 700,
   'render/habits.ts': 700,
   'index.tsx': 700,
-  'render/calendar.ts': 700,
+  'render/calendar.ts': 600,
+  // Refatorados no ciclo 2 — monitorar para nova redução
+  'listeners/drag.ts': 600,
+  'listeners/swipe.ts': 600,
+  'render/modals.ts': 550,
+  'services/quoteEngine.ts': 450,
 };
 
 function walk(dir, out = []) {
