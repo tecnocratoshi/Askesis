@@ -37,35 +37,7 @@ type ManageHabitStatus = 'active' | 'graduated' | 'ended';
 type ManageHabitItem = { h: Habit; st: ManageHabitStatus; name: string; subtitle: string };
 
 function replaceWithHtmlFragment(target: HTMLElement, html: string) {
-    target.replaceChildren(document.createRange().createContextualFragment(html));
-}
-
-function sanitizeHtmlToFragment(html: string): DocumentFragment {
-    const template = document.createElement('template');
-    template.innerHTML = html;
-
-    const blockedTags = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'style'];
-    for (const tag of blockedTags) {
-        template.content.querySelectorAll(tag).forEach(node => node.remove());
-    }
-
-    const elements = template.content.querySelectorAll('*');
-    for (const el of elements) {
-        const attrs = Array.from(el.attributes);
-        for (const attr of attrs) {
-            const attrName = attr.name.toLowerCase();
-            const attrValue = attr.value.trim().toLowerCase();
-            if (attrName.startsWith('on')) {
-                el.removeAttribute(attr.name);
-                continue;
-            }
-            if ((attrName === 'href' || attrName === 'src' || attrName === 'xlink:href') && attrValue.startsWith('javascript:')) {
-                el.removeAttribute(attr.name);
-            }
-        }
-    }
-
-    return template.content;
+    target.replaceChildren(sanitizeHtmlToFragment(html));
 }
 
 function buildManageActionButton(className: string, ariaLabel: string, iconHtml: string): HTMLButtonElement {

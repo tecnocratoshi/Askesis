@@ -20,7 +20,7 @@ import { calculateDaySummary } from './services/selectors';
 import { APP_EVENTS, emitRequestAnalysis } from './events';
 
 // Importa os renderizadores especializados
-import { setTextContent, updateReelRotaryARIA } from './render/dom';
+import { setTextContent, updateReelRotaryARIA, setTrustedSvgContent } from './render/dom';
 import { renderCalendar, renderFullCalendar } from './render/calendar';
 import { renderHabits } from './render/habits';
 import { renderChart } from './render/chart';
@@ -75,10 +75,6 @@ let _cachedRefToday: string | null = null;
 let _cachedYesterdayISO: string | null = null;
 let _cachedTomorrowISO: string | null = null;
 
-function replaceWithHtmlFragment(target: HTMLElement, html: string) {
-    target.replaceChildren(document.createRange().createContextualFragment(html));
-}
-
 const OPTS_HEADER_DESKTOP: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', timeZone: 'UTC' };
 const OPTS_HEADER_ARIA: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' };
 const OPTS_HEADER_MOBILE_NUMERIC: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', timeZone: 'UTC' };
@@ -127,9 +123,9 @@ function _updateHeaderTitle() {
 }
 
 function _renderHeaderIcons() {
-    if (!ui.manageHabitsBtn.hasChildNodes()) replaceWithHtmlFragment(ui.manageHabitsBtn, UI_ICONS.settings);
+    if (!ui.manageHabitsBtn.hasChildNodes()) setTrustedSvgContent(ui.manageHabitsBtn, UI_ICONS.settings);
     const defaultIconSpan = ui.aiEvalBtn.querySelector('.default-icon');
-    if (defaultIconSpan && !defaultIconSpan.hasChildNodes()) replaceWithHtmlFragment(defaultIconSpan as HTMLElement, UI_ICONS.ai);
+    if (defaultIconSpan && !defaultIconSpan.hasChildNodes()) setTrustedSvgContent(defaultIconSpan as HTMLElement, UI_ICONS.ai);
 }
 
 export function updateUIText() {
@@ -199,13 +195,13 @@ export function updateUIText() {
         const expectedText = ` ${text}`;
 
         if (hasSingleTextNode && currentText === text) {
-            replaceWithHtmlFragment(btn, icon);
+            setTrustedSvgContent(btn, icon);
             btn.append(document.createTextNode(expectedText));
             return;
         }
 
         if (currentText.trim() !== text || btn.childNodes.length < 2) {
-            replaceWithHtmlFragment(btn, icon);
+            setTrustedSvgContent(btn, icon);
             btn.append(document.createTextNode(expectedText));
         }
     };

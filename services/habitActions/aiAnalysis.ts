@@ -18,6 +18,7 @@ import {
 import {
     closeModal, showConfirmationModal, renderAINotificationState, openModal
 } from '../../render';
+import { sanitizeHtmlToFragment } from '../../render/dom';
 import { ui } from '../../render/ui';
 import { saveState } from '../persistence';
 import { runWorkerTask, addSyncLog } from '../cloud';
@@ -130,10 +131,10 @@ export async function performAIAnalysis(type: 'monthly' | 'quarterly' | 'histori
             // Handle 429/Quota/Overload gracefully with Friendly Message
             if (errStr.includes('429') || errStr.includes('Quota') || errStr.includes('RESOURCE_EXHAUSTED')) {
                 const html = `<div class="ai-error-message"><h3>${escapeHTML(t('aiServerBusyTitle'))}</h3><p>${escapeHTML(t('aiServerBusy'))}</p></div>`;
-                ui.aiResponse.replaceChildren(document.createRange().createContextualFragment(html));
+                ui.aiResponse.replaceChildren(sanitizeHtmlToFragment(html));
             } else {
                 const html = `<div class="ai-error-message"><h3>${t('aiLimitTitle') === 'Daily Limit Reached' ? 'Error' : 'Erro'}</h3><p>${escapeHTML(t('aiErrorGeneric'))}</p><div class="debug-info"><small>${escapeHTML(errStr)}</small></div></div>`;
-                ui.aiResponse.replaceChildren(document.createRange().createContextualFragment(html));
+                ui.aiResponse.replaceChildren(sanitizeHtmlToFragment(html));
             }
 
             // UX FIX: Provide close handler to clear notification state

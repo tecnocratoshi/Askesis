@@ -72,11 +72,11 @@ export function getHabitPropertiesForDate(habit: Habit, dateISO: string): HabitS
 }
 
 export function getHabitDisplayInfo(habit: Habit | PredefinedHabit, dateISO?: string, time?: TimeOfDay): { name: string, subtitle: string, status?: number, isCompleted?: boolean, note?: string, value?: number } {
-    let source: any = habit;
+    let source: HabitSchedule | PredefinedHabit | Habit = habit;
     const effectiveDate = dateISO || getTodayUTCIso();
 
     if ('scheduleHistory' in habit && habit.scheduleHistory.length > 0) {
-        source = getHabitPropertiesForDate(habit as Habit, effectiveDate);
+        source = getHabitPropertiesForDate(habit as Habit, effectiveDate) ?? habit;
     }
     
     const baseInfo = {

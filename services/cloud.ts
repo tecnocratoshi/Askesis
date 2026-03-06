@@ -8,7 +8,7 @@
  * @description Orquestrador de Sincronização e Ponte para Web Workers (Main Thread Client).
  */
 
-import { AppState, state, getPersistableState } from '../state';
+import { AppState, Habit, state, getPersistableState } from '../state';
 import { loadState, persistStateLocally } from './persistence';
 import { pushToOneSignal, createDebounced, logger, escapeHTML } from '../utils';
 import { ui } from '../render/ui';
@@ -41,18 +41,18 @@ const debouncedSync = createDebounced(() => { if (!isSyncInProgress) performSync
 // Mantém API pública (tests e outros módulos dependem disso), mas delega o plumbing.
 export function runWorkerTask<T>(
     type: WorkerTaskType,
-    payload: any,
+    payload: unknown,
     key?: string
 ): Promise<T> {
-    return runWorkerTaskInternal<T>(type as any, payload, {
+    return runWorkerTaskInternal<T>(type, payload, {
         key,
         timeoutMs: CLOUD_WORKER_TIMEOUT_MS,
         workerUrl: './sync-worker.js'
     });
 }
 
-function splitIntoShards(appState: AppState): Record<string, any> {
-    const shards: Record<string, any> = {};
+function splitIntoShards(appState: AppState): Record<string, unknown> {
+    const shards: Record<string, unknown> = {};
     // Core: Dados leves e críticos para o boot
     shards['core'] = {
         version: appState.version,
@@ -119,7 +119,13 @@ export function clearSyncHashCache() {
 }
 
 async function readApiErrorMessage(response: Response, fallbackMessage: string): Promise<{ message: string; code?: string }> {
-    const errorData = await response.json().catch(() => ({} as any));
+    const errorData = await response.json().catch(() => ({})) as {
+        error?: string;
+        code?: string;
+        detail?: string;
+        detailType?: string;
+        raw?: unknown;
+    };
     const code = errorData.code ? ` [${errorData.code}]` : '';
     const detail = errorData.detail ? ` (${errorData.detail}${errorData.detailType ? `:${errorData.detailType}` : ''})` : '';
     const raw = errorData.raw ? ` raw=${JSON.stringify(errorData.raw)}` : '';
@@ -152,30 +158,30 @@ async function decryptServerShards(
     shards: Record<string, string>,
     syncKey: string,
     options: { updateHashCache: boolean }
-): Promise<Record<string, any>> {
-    const decrypted: Record<string, any> = {};
+): Promise<Record<string, unknown>> {
+    const decrypted: Record<string, unknown> = {};
     for (const key in shards) {
         if (key === 'lastModified') continue;
         try {
             if (options.updateHashCache) {
                 try {
                     const res = await runWorkerTask<WorkerDecryptWithHashResult>('decrypt-with-hash', shards[key], syncKey);
-                    if (!res || typeof res !== 'object' || !('value' in res)) {
+                    if (!res || typeof res !== 'object' || !('value' in res) || !('hash' in res)) {
                         throw new Error('decrypt-with-hash unsupported');
                     }
-                    decrypted[key] = (res as any).value;
-                    const hash = (res as any).hash;
+                    decrypted[key] = res.value;
+                    const hash = res.hash;
                     if (typeof hash === 'string') lastSyncedHashes.set(key, hash);
                 } catch {
                     // Backward-compat / test mocks: fall back to plain decrypt.
-                    const value = await runWorkerTask<any>('decrypt', shards[key], syncKey);
+                    const value = await runWorkerTask<unknown>('decrypt', shards[key], syncKey);
                     decrypted[key] = value;
                     try {
                         lastSyncedHashes.set(key, murmurHash3(JSON.stringify(value)));
                     } catch {}
                 }
             } else {
-                decrypted[key] = await runWorkerTask<any>('decrypt', shards[key], syncKey);
+                decrypted[key] = await runWorkerTask<unknown>('decrypt', shards[key], syncKey);
             }
         } catch (e) {
             logger.warn(`[Sync] Skip decrypt ${key}`, e);
@@ -184,64 +190,93 @@ async function decryptServerShards(
     return decrypted;
 }
 
-function buildAppStateFromDecryptedShards(decryptedShards: Record<string, any>, lastModifiedRaw: string | undefined): AppState | undefined {
+type DecryptedCore = {
+    version?: number;
+    habits?: Habit[];
+    dailyData?: AppState['dailyData'];
+    dailyDiagnoses?: AppState['dailyDiagnoses'];
+    notificationsShown?: AppState['notificationsShown'];
+    hasOnboarded?: AppState['hasOnboarded'];
+    quoteState?: AppState['quoteState'];
+};
+
+function isHabitArray(value: unknown): value is Habit[] {
+    return Array.isArray(value)
+        && value.every((h) => !!h && typeof h === 'object' && typeof (h as Habit).id === 'string' && Array.isArray((h as Habit).scheduleHistory));
+}
+
+function buildAppStateFromDecryptedShards(decryptedShards: Record<string, unknown>, lastModifiedRaw: string | undefined): AppState | undefined {
     const core = decryptedShards['core'];
-    if (core && (!Array.isArray(core.habits) || !core.habits.every((h: any) => h && typeof h.id === 'string' && Array.isArray(h.scheduleHistory)))) {
+    if (core && (typeof core !== 'object' || core === null)) {
+        logger.error('[Sync] Decrypted core shard is invalid. Aborting reconstruction.');
+        return undefined;
+    }
+
+    const coreData = (core ?? {}) as DecryptedCore;
+    if (coreData.habits && !isHabitArray(coreData.habits)) {
         logger.error('[Sync] Decrypted core data has invalid structure. Aborting reconstruction.');
         return undefined;
     }
 
-    const result: any = {
-        version: core?.version || 0,
+    const result: AppState = {
+        ...state,
+        version: coreData.version || 0,
         lastModified: parseInt(lastModifiedRaw || '0', 10),
-        habits: core?.habits || [],
-        dailyData: core?.dailyData || {},
-        dailyDiagnoses: core?.dailyDiagnoses || {},
+        habits: coreData.habits || [],
+        dailyData: coreData.dailyData || {},
+        dailyDiagnoses: coreData.dailyDiagnoses || {},
         archives: {},
         monthlyLogs: new Map(),
-        notificationsShown: core?.notificationsShown || [],
-        hasOnboarded: core?.hasOnboarded ?? true,
-        quoteState: core?.quoteState
+        notificationsShown: coreData.notificationsShown || [],
+        hasOnboarded: coreData.hasOnboarded ?? true,
+        quoteState: coreData.quoteState
     };
 
     for (const key in decryptedShards) {
         if (key.startsWith('archive:')) {
-            result.archives[key.replace('archive:', '')] = decryptedShards[key];
+            const archivePayload = decryptedShards[key];
+            if (typeof archivePayload === 'string') {
+                result.archives[key.replace('archive:', '')] = archivePayload;
+            }
         }
         if (key.startsWith('logs:')) {
-            decryptedShards[key].forEach(([k, v]: [string, string]) => {
-                try {
-                    result.monthlyLogs.set(k, BigInt(v));
-                } catch (e) {
-                    logger.warn(`[Sync] Invalid log value for ${k}, skipping.`, e);
-                }
-            });
+            const monthEntries = decryptedShards[key];
+            if (Array.isArray(monthEntries)) {
+                monthEntries.forEach((entry) => {
+                    if (!Array.isArray(entry) || entry.length !== 2) return;
+                    const [k, v] = entry;
+                    if (typeof k !== 'string' || typeof v !== 'string') return;
+                    try {
+                        result.monthlyLogs.set(k, BigInt(v));
+                    } catch (e) {
+                        logger.warn(`[Sync] Invalid log value for ${k}, skipping.`, e);
+                    }
+                });
+            }
         }
     }
 
-    return result as AppState;
+    return result;
 }
 
-function confirmDeduplicationViaModal(identity: string, winnerHabit: any, loserHabit: any): Promise<'deduplicate' | 'keep_separate'> {
-    const winnerName = escapeHTML((winnerHabit.scheduleHistory?.[winnerHabit.scheduleHistory.length - 1]?.name
-        || winnerHabit.scheduleHistory?.[winnerHabit.scheduleHistory.length - 1]?.nameKey
-        || identity
-        || ''));
-    const loserName = escapeHTML((loserHabit.scheduleHistory?.[loserHabit.scheduleHistory.length - 1]?.name
-        || loserHabit.scheduleHistory?.[loserHabit.scheduleHistory.length - 1]?.nameKey
-        || identity
-        || ''));
+function confirmDeduplicationViaModal(identity: string, winnerHabit: Habit, loserHabit: Habit): Promise<'deduplicate' | 'keep_separate'> {
+    const ctx = buildDedupModalContext(identity, winnerHabit, loserHabit);
+    const winnerName = escapeHTML(ctx.winnerName || identity || '');
+    const loserName = escapeHTML(ctx.loserName || identity || '');
+    const recommendation = escapeHTML(ctx.recommendationText || '');
+    const confidence = escapeHTML(String(ctx.confidenceLevel || 'low').toUpperCase());
 
     const html = `
         <p>Foram detectados dois hábitos potencialmente iguais durante a sincronização.</p>
         <div style="margin:10px 0; padding:10px; border:1px solid var(--border-color); border-radius:10px;">
+            <div style="margin-bottom:8px;"><strong>Confiança:</strong> ${confidence}</div>
             <div><strong>Hábito A:</strong> “${winnerName}”</div>
             <div style="opacity:0.7; font-size:12px; margin-top:4px;">ID: ${escapeHTML(String(winnerHabit.id || ''))}</div>
             <hr style="border:none; border-top:1px solid var(--border-color); margin:10px 0;" />
             <div><strong>Hábito B:</strong> “${loserName}”</div>
             <div style="opacity:0.7; font-size:12px; margin-top:4px;">ID: ${escapeHTML(String(loserHabit.id || ''))}</div>
         </div>
-        <p style="margin-top:10px;">Consolidar irá mesclar históricos e remapear dados do calendário. Se você não tiver certeza, escolha manter separados.</p>
+        <p style="margin-top:10px;">${recommendation || 'Consolidar irá mesclar históricos e remapear dados do calendário. Se você não tiver certeza, escolha manter separados.'}</p>
     `;
 
     return new Promise((resolve) => {
@@ -284,8 +319,9 @@ async function resolveConflictWithServerState(serverShards: SyncServerShards) {
         addSyncLog("Mesclagem concluída.", "success");
         clearSyncHashCache(); 
         syncStateWithCloud(mergedState, true);
-    } catch (error: any) {
-        addSyncLog(`Erro na resolução: ${error.message}`, "error");
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        addSyncLog(`Erro na resolução: ${message}`, "error");
         setSyncStatus('syncError');
     }
 }
@@ -368,13 +404,14 @@ async function performSync() {
             throw err;
         }
         logger.info(`[Sync Perf] encrypt=${(encryptEnd - encryptStart).toFixed(1)}ms payload=${(payloadEnd - payloadStart).toFixed(1)}ms post=${(postEnd - postStart).toFixed(1)}ms total=${(performance.now() - perfStart).toFixed(1)}ms`);
-    } catch (error: any) {
-        const status = Number(error?.status || 0);
-        const code = String(error?.code || '');
+    } catch (error) {
+        const maybeError = error as Partial<Error & { status?: number; code?: string }>;
+        const status = Number(maybeError.status || 0);
+        const code = String(maybeError.code || '');
         const isTransient = status === 503 || code === 'LUA_UNAVAILABLE' || status === 429 || status >= 500;
 
-        const formatTransientSyncLog = (err: any) => {
-            const tech = String(err?.message || 'Erro desconhecido');
+        const formatTransientSyncLog = (err: unknown) => {
+            const tech = err instanceof Error ? err.message : String(err || 'Erro desconhecido');
             if (code === 'LUA_UNAVAILABLE' || tech.includes('Atomic sync unavailable') || status === 503) {
                 return 'Servidor de sync temporariamente indisponível. Reenfileirado.';
             }
@@ -390,12 +427,15 @@ async function performSync() {
             addSyncLog(formatTransientSyncLog(error), 'info');
             setSyncStatus('syncSaving');
         } else {
-            addSyncLog(`Falha no envio: ${error.message}`, "error");
+            const message = error instanceof Error ? error.message : String(error);
+            addSyncLog(`Falha no envio: ${message}`, "error");
             setSyncStatus('syncError');
         }
 
         if ('serviceWorker' in navigator && 'SyncManager' in window) {
-            navigator.serviceWorker.ready.then(reg => (reg as any).sync?.register('sync-cloud-pending')).catch(() => {});
+            navigator.serviceWorker.ready
+                .then((reg) => (reg as ServiceWorkerRegistration & { sync?: { register: (tag: string) => Promise<void> } }).sync?.register('sync-cloud-pending'))
+                .catch(() => {});
         }
     } finally {
         isSyncInProgress = false;
