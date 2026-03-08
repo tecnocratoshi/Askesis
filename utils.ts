@@ -435,7 +435,14 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
         const oneSignal = await ready;
         try {
             const optedIn = !!(oneSignal as any)?.User?.PushSubscription?.optedIn;
-            setLocalPushOptIn(optedIn);
+            // Chrome/Brave Android, Safari e outros: logo após a init do OneSignal, optedIn pode
+            // ser false mesmo com permissão nativa concedida, porque a subscription ainda está sendo
+            // finalizada assincronamente. Não sobrescrever a intenção explícita do usuário nesses
+            // casos — só atualizar para false se o browser também não concedeu permissão.
+            const nativePerm = (typeof Notification !== 'undefined') ? (Notification as any).permission : 'default';
+            if (optedIn || nativePerm !== 'granted') {
+                setLocalPushOptIn(optedIn);
+            }
         } catch {}
         // Habilita SW (push delivery) só após opt-in explícito.
         await enableOneSignalInServiceWorker();

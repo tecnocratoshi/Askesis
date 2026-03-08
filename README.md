@@ -129,8 +129,8 @@ O Askesis foi desenhado em camadas: intuitivo na superfície, mas repleto de fer
 
 O hábito é a unidade fundamental da aplicação. O sistema permite rastrear não apenas a conclusão ("check"), mas também a quantidade e intensidade (páginas lidas, minutos meditados).
 
-Para começar a construir sua rotina, você tem dois caminhos:
-*   **Botão Verde Brilhante (+):** O ponto de partida principal no canto inferior.
+Para começar a construir sua rotina e criar um hábito, você tem dois caminhos:
+*   **Botão Verde Brilhante (+):** O ponto de partida principal no canto superior esquerdo.
 
 <br>
 <p align="center">
@@ -143,7 +143,7 @@ Para começar a construir sua rotina, você tem dois caminhos:
 <p align="center">
   <img src="assets/screenshot/placeholder.jpeg" alt="Placeholder" width="190%" style="border-radius: 10px; border: 1px solid #2a2a2a;"></p>
 
-Uma vez criados, seus hábitos podem ser explorados e gerenciados de forma detalhada:
+O sistema proporciona uma lista inicial de hábitos ou você pode adicionar o seu de forma personalizada.
 
 *   **Lista de Hábitos:** Explore uma lista de hábitos pré-definidos (como meditação, leitura, exercício) ou crie os seus próprios personalizados. Aqui, você pode gerenciar hábitos ativos e pausados conforme necessário.
 

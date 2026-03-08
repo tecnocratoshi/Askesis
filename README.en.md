@@ -128,9 +128,9 @@ Askesis is designed in layers: intuitive on the surface, but packed with powerfu
 
 Habits are the fundamental unit of the application. The system allows tracking not only completion ("check"), but also quantity and intensity (pages read, minutes meditated).
 
-To start building your routine, you have two paths:
+To start building your routine and create a habit, you have two paths:
 
-- **Bright Green (+) Button:** The main entry point in the bottom corner.
+- **Bright Green (+) Button:** The main entry point in the top left corner.
 
 <br>
 <p align="center">
@@ -143,7 +143,7 @@ To start building your routine, you have two paths:
 <p align="center">
   <img src="assets/screenshot/placeholder_en.jpeg" alt="Placeholder" width="190%" style="border-radius: 10px; border: 1px solid #2a2a2a;"></p>
 
-Once created, your habits can be explored and managed in detail:
+The system provides an initial list of habits, or you can add your own in a personalized way.
 
 - **Habits List:** Explore a list of pre-defined habits (like meditation, reading, exercise) or create your own custom ones. Here, you can manage active and paused habits as needed.
 

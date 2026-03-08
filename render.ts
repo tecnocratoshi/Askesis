@@ -282,7 +282,13 @@ export function updateNotificationUI() {
     pushToOneSignal((OneSignal: OneSignalLike) => {
         const isPushEnabled = OneSignal.User.PushSubscription.optedIn;
         const permission = OneSignal.Notifications.permission;
-        setLocalPushOptIn(!!isPushEnabled);
+        // Chrome/Brave Android, Safari e outros: não sobrescrever localOptIn para false se a
+        // permissão nativa ainda é 'granted'. O OneSignal pode reportar optedIn=false enquanto
+        // a subscription assíncrona ainda está sendo finalizada.
+        const nativePerm = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
+        if (isPushEnabled || nativePerm !== 'granted') {
+            setLocalPushOptIn(!!isPushEnabled);
+        }
         if (ui.notificationToggle.checked !== !!isPushEnabled) ui.notificationToggle.checked = !!isPushEnabled;
         const isDenied = permission === 'denied';
         if (ui.notificationToggle.disabled !== isDenied) {
