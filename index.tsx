@@ -247,11 +247,12 @@ function finalizeInit(loader: HTMLElement | null) {
 
         // Se o usuário já optou por notificações, carregamos o OneSignal automaticamente.
         // Isso mantém o runtime zero-deps por padrão (para quem não optou), mas respeita a decisão do usuário.
+        // IMPORTANTE: NÃO chamamos requestPermission() aqui — isso está fora de um gesto do usuário
+        // e no iOS Safari PWA causaria interferência (silenciosamente bloqueado pelo WebKit),
+        // além de conflitar com a solicitação feita pelo toggle. Apenas inicializamos a conexão.
         const permission = (typeof Notification !== 'undefined' && (Notification as any).permission) ? (Notification as any).permission : 'default';
         if (getLocalPushOptIn() === true && permission === 'granted') {
-            ensureOneSignalReady()
-                .then((OneSignal) => OneSignal.Notifications.requestPermission?.().catch(() => {}))
-                .catch(() => {});
+            ensureOneSignalReady().catch(() => {});
         }
     };
     if ((window as any).scheduler?.postTask) {
