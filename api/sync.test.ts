@@ -31,6 +31,19 @@ function makePostRequest(body: unknown) {
   });
 }
 
+function makeRawPostRequest(body: string, headers?: Record<string, string>) {
+  return new Request('https://askesis.vercel.app/api/sync', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-sync-key-hash': VALID_HASH,
+      'origin': 'https://askesis.vercel.app',
+      ...(headers || {})
+    },
+    body
+  });
+}
+
 function makePostRequestWithLegacyBearer(body: unknown, rawKey = 'legacy-sync-key') {
   return new Request('https://askesis.vercel.app/api/sync', {
     method: 'POST',
@@ -40,6 +53,17 @@ function makePostRequestWithLegacyBearer(body: unknown, rawKey = 'legacy-sync-ke
       'origin': 'https://askesis.vercel.app'
     },
     body: JSON.stringify(body)
+  });
+}
+
+function makeGetRequest(headers?: Record<string, string>) {
+  return new Request('https://askesis.vercel.app/api/sync', {
+    method: 'GET',
+    headers: {
+      'x-sync-key-hash': VALID_HASH,
+      'origin': 'https://askesis.vercel.app',
+      ...(headers || {})
+    }
   });
 }
 
@@ -144,6 +168,38 @@ describe('api/sync payload hardening', () => {
     expect(evalMock).not.toHaveBeenCalled();
   });
 
+  it('rejeita payload cedo quando Content-Length excede o teto global', async () => {
+    const handler = await loadHandler();
+
+    const response = await handler(makeRawPostRequest(
+      JSON.stringify({ lastModified: Date.now(), shards: { core: '{}' } }),
+      { 'content-length': String((5 * 1024 * 1024) + 1) }
+    ));
+
+    const body = await response.json();
+    expect(response.status).toBe(413);
+    expect(body.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(body.detail).toBe('content-length');
+    expect(evalMock).not.toHaveBeenCalled();
+  });
+
+  it('rejeita payload quando o body bruto excede o teto global', async () => {
+    const handler = await loadHandler();
+    const oversizedCore = 'a'.repeat((5 * 1024 * 1024) + 256);
+
+    const response = await handler(makePostRequest({
+      lastModified: Date.now(),
+      shards: {
+        core: oversizedCore
+      }
+    }));
+
+    const body = await response.json();
+    expect(response.status).toBe(413);
+    expect(body.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(evalMock).not.toHaveBeenCalled();
+  });
+
   it('aceita payload legítimo dentro dos limites', async () => {
     const handler = await loadHandler();
 
@@ -157,5 +213,31 @@ describe('api/sync payload hardening', () => {
 
     expect(response.status).toBe(200);
     expect(evalMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retorna ETag no GET quando há estado remoto', async () => {
+    const handler = await loadHandler();
+    hgetallMock.mockResolvedValue({ lastModified: '10', core: 'ciphertext' });
+
+    const response = await handler(makeGetRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('ETag')).toBeTruthy();
+    expect(body.lastModified).toBe('10');
+  });
+
+  it('retorna 304 quando If-None-Match coincide com o ETag atual', async () => {
+    const handler = await loadHandler();
+    hgetallMock.mockResolvedValue({ lastModified: '10', core: 'ciphertext' });
+
+    const firstResponse = await handler(makeGetRequest());
+    const etag = firstResponse.headers.get('ETag');
+
+    const secondResponse = await handler(makeGetRequest({ 'if-none-match': etag || '' }));
+
+    expect(etag).toBeTruthy();
+    expect(secondResponse.status).toBe(304);
+    expect(secondResponse.headers.get('ETag')).toBe(etag);
   });
 });
