@@ -66,6 +66,7 @@ return { "OK" }
 const MAX_SHARDS_PER_REQUEST = 256;
 const MAX_SHARD_VALUE_BYTES = 512 * 1024; // 512KB por shard
 const MAX_TOTAL_SHARDS_BYTES = 4 * 1024 * 1024; // 4MB total
+const MAX_REQUEST_BODY_BYTES = 5 * 1024 * 1024; // 5MB total bruto
 
 const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
 const CORS_STRICT = process.env.CORS_STRICT === '1';
@@ -94,6 +95,14 @@ function withEtag(headers: Record<string, string>, etag: string): Record<string,
         ...headers,
         'ETag': etag
     };
+}
+
+function isRequestBodyTooLarge(req: Request): boolean {
+    const contentLength = req.headers.get('content-length');
+    if (!contentLength) return false;
+
+    const parsed = Number(contentLength);
+    return Number.isFinite(parsed) && parsed > MAX_REQUEST_BODY_BYTES;
 }
 
 async function sha256(message: string) {
@@ -201,7 +210,22 @@ export default async function handler(req: Request) {
         }
 
         if (req.method === 'POST') {
-            const body = await req.json() as SyncPostBody;
+            if (isRequestBodyTooLarge(req)) {
+                return new Response(JSON.stringify({ error: 'Payload too large', code: 'PAYLOAD_TOO_LARGE', detail: 'content-length' }), { status: 413, headers: HEADERS_BASE });
+            }
+
+            const rawBody = await req.text();
+            const rawBodyBytes = new TextEncoder().encode(rawBody).length;
+            if (rawBodyBytes > MAX_REQUEST_BODY_BYTES) {
+                return new Response(JSON.stringify({ error: 'Payload too large', code: 'PAYLOAD_TOO_LARGE', detail: 'body' }), { status: 413, headers: HEADERS_BASE });
+            }
+
+            let body: SyncPostBody;
+            try {
+                body = JSON.parse(rawBody) as SyncPostBody;
+            } catch {
+                return new Response(JSON.stringify({ error: 'Invalid JSON', code: 'INVALID_JSON' }), { status: 400, headers: HEADERS_BASE });
+            }
             const { lastModified, shards } = body;
 
             if (lastModified === undefined) {
