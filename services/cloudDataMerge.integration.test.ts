@@ -82,12 +82,66 @@ class MockWorker {
         return;
       }
 
+      if (payload === 'coreOlderEnc') {
+        this.onmessage?.({
+          data: {
+            id,
+            status: 'success',
+            result: {
+              version: 10,
+              habits: [
+                {
+                  id: 'remote-older-habit',
+                  createdOn: '2024-01-03',
+                  scheduleHistory: [
+                    {
+                      startDate: '2024-01-03',
+                      name: 'Remote Older Habit',
+                      icon: '⭐',
+                      color: '#111111',
+                      goal: { type: 'check' },
+                      times: ['Evening'],
+                      frequency: { type: 'daily' },
+                      scheduleAnchor: '2024-01-03'
+                    }
+                  ]
+                }
+              ],
+              dailyData: {
+                '2024-01-03': {
+                  'remote-older-habit': {
+                    instances: { Evening: { note: 'remote-older-note' } },
+                    dailySchedule: undefined
+                  }
+                }
+              },
+              dailyDiagnoses: {},
+              notificationsShown: [],
+              hasOnboarded: true,
+              quoteState: undefined
+            }
+          }
+        } as MessageEvent);
+        return;
+      }
+
       if (payload === 'logsEnc') {
         this.onmessage?.({
           data: {
             id,
             status: 'success',
             result: [['remote-habit_2024-01', '0x1']]
+          }
+        } as MessageEvent);
+        return;
+      }
+
+      if (payload === 'logsOlderEnc') {
+        this.onmessage?.({
+          data: {
+            id,
+            status: 'success',
+            result: [['remote-older-habit_2024-01', '0x1']]
           }
         } as MessageEvent);
         return;
@@ -143,5 +197,40 @@ describe('cloud + dataMerge integration', () => {
 
     expect(mergedState.monthlyLogs.has(`${localHabitId}_2024-01`)).toBe(true);
     expect(mergedState.monthlyLogs.has('remote-habit_2024-01')).toBe(true);
+  });
+
+  it('deve carregar mudanças remotas mesmo com timestamp local maior', async () => {
+    const localHabitId = createTestHabit({
+      name: 'Local Ahead Habit',
+      time: 'Morning',
+      goalType: 'check'
+    });
+    HabitService.setStatus(localHabitId, '2024-01-01', 'Morning', 1);
+    state.lastModified = 9999999999999;
+
+    const { apiFetch } = await import('./api');
+    const { persistStateLocally } = await import('./persistence');
+
+    vi.mocked(apiFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        lastModified: '1000',
+        core: 'coreOlderEnc',
+        'logs:2024-01': 'logsOlderEnc'
+      })
+    } as any);
+
+    const { fetchStateFromCloud } = await import('./cloud');
+    await fetchStateFromCloud();
+
+    expect(persistStateLocally).toHaveBeenCalled();
+    const mergedState = vi.mocked(persistStateLocally).mock.calls[0][0] as ReturnType<typeof getPersistableState>;
+
+    const mergedIds = mergedState.habits.map(h => h.id);
+    expect(mergedIds).toContain(localHabitId);
+    expect(mergedIds).toContain('remote-older-habit');
+    expect(mergedState.monthlyLogs.has(`${localHabitId}_2024-01`)).toBe(true);
+    expect(mergedState.monthlyLogs.has('remote-older-habit_2024-01')).toBe(true);
   });
 });
