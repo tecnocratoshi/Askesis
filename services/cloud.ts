@@ -26,27 +26,71 @@ import {
     CLOUD_SYNC_LOG_MAX_ENTRIES,
     CLOUD_SYNC_LOG_MAX_AGE_MS,
     CLOUD_HASH_CACHE_MAX_ENTRIES,
-    CLOUD_WORKER_TIMEOUT_MS
+    CLOUD_WORKER_TIMEOUT_MS,
+    CLOUD_WORKER_TIMEOUT_PER_256KB_MS,
+    CLOUD_WORKER_MAX_TIMEOUT_MS
 } from '../constants';
 
 const HASH_STORAGE_KEY = 'askesis_sync_hashes';
+const REMOTE_STATE_ETAG_STORAGE_KEY = 'askesis_sync_remote_etag';
+const CONFLICT_RECOVERY_BACKUP_KEY = 'askesis_sync_conflict_backup';
 const TRANSIENT_SYNC_RETRY_DELAY_MS = 1500;
+const WORKER_TIMEOUT_RETRYABLE_TASKS = new Set<WorkerTaskType>(['encrypt-json', 'decrypt', 'decrypt-with-hash']);
+const workerPayloadEncoder = new TextEncoder();
 
 let isSyncInProgress = false;
-let pendingSyncState: AppState | null = null;
+let pendingSyncQueue: AppState[] = [];
 const debouncedSync = createDebounced(() => { if (!isSyncInProgress) performSync(); }, CLOUD_SYNC_DEBOUNCE_MS);
 
 // Mantém API pública (tests e outros módulos dependem disso), mas delega o plumbing.
-export function runWorkerTask<T>(
+function estimateWorkerPayloadBytes(payload: any): number {
+    if (payload == null) return 0;
+    if (typeof payload === 'string') return workerPayloadEncoder.encode(payload).length;
+
+    try {
+        return workerPayloadEncoder.encode(JSON.stringify(payload)).length;
+    } catch {
+        return 0;
+    }
+}
+
+function calculateAdaptiveWorkerTimeoutMs(payload: any): number {
+    const payloadBytes = estimateWorkerPayloadBytes(payload);
+    const extraWindows = Math.ceil(payloadBytes / (256 * 1024));
+    const computed = CLOUD_WORKER_TIMEOUT_MS + (extraWindows * CLOUD_WORKER_TIMEOUT_PER_256KB_MS);
+    return Math.min(computed, CLOUD_WORKER_MAX_TIMEOUT_MS);
+}
+
+function isWorkerTimeoutError(error: unknown): boolean {
+    return error instanceof Error && error.message === 'Worker timeout';
+}
+
+export async function runWorkerTask<T>(
     type: WorkerTaskType,
     payload: any,
     key?: string
 ): Promise<T> {
-    return runWorkerTaskInternal<T>(type as any, payload, {
-        key,
-        timeoutMs: CLOUD_WORKER_TIMEOUT_MS,
-        workerUrl: './sync-worker.js'
-    });
+    const timeoutMs = calculateAdaptiveWorkerTimeoutMs(payload);
+
+    try {
+        return await runWorkerTaskInternal<T>(type as any, payload, {
+            key,
+            timeoutMs,
+            workerUrl: './sync-worker.js'
+        });
+    } catch (error) {
+        if (!isWorkerTimeoutError(error) || !WORKER_TIMEOUT_RETRYABLE_TASKS.has(type)) {
+            throw error;
+        }
+
+        const retryTimeoutMs = Math.min(timeoutMs * 2, CLOUD_WORKER_MAX_TIMEOUT_MS);
+        logger.warn(`[Sync] Worker timeout on ${type}. Retrying with timeout=${retryTimeoutMs}ms.`);
+        return await runWorkerTaskInternal<T>(type as any, payload, {
+            key,
+            timeoutMs: retryTimeoutMs,
+            workerUrl: './sync-worker.js'
+        });
+    }
 }
 
 function splitIntoShards(appState: AppState): Record<string, any> {
@@ -137,6 +181,76 @@ export function clearSyncHashCache() {
     lastSyncedHashes.clear();
     localStorage.removeItem(HASH_STORAGE_KEY);
     logger.info("[Sync] Hash cache cleared.");
+}
+
+function getStoredRemoteStateEtag(): string | null {
+    try {
+        return localStorage.getItem(REMOTE_STATE_ETAG_STORAGE_KEY);
+    } catch {
+        return null;
+    }
+}
+
+function setStoredRemoteStateEtag(etag: string | null) {
+    try {
+        if (!etag) {
+            localStorage.removeItem(REMOTE_STATE_ETAG_STORAGE_KEY);
+            return;
+        }
+        localStorage.setItem(REMOTE_STATE_ETAG_STORAGE_KEY, etag);
+    } catch {}
+}
+
+function updateStoredRemoteStateEtagFromResponse(response: Response) {
+    const etag = response.headers.get('ETag');
+    if (etag) setStoredRemoteStateEtag(etag);
+}
+
+function serializeConflictRecoveryBackup(appState: AppState): string {
+    return JSON.stringify({
+        ...appState,
+        monthlyLogs: Array.from((appState.monthlyLogs || new Map()).entries()).map(([key, value]) => [key, `0x${value.toString(16)}`])
+    });
+}
+
+function storeConflictRecoveryBackup(appState: AppState) {
+    try {
+        localStorage.setItem(CONFLICT_RECOVERY_BACKUP_KEY, serializeConflictRecoveryBackup(appState));
+    } catch (error) {
+        logger.warn('[Sync] Failed to persist conflict recovery backup.', error);
+    }
+}
+
+function clearConflictRecoveryBackup() {
+    try {
+        localStorage.removeItem(CONFLICT_RECOVERY_BACKUP_KEY);
+    } catch {}
+}
+
+function buildConditionalSyncGetHeaders(): HeadersInit | undefined {
+    const etag = getStoredRemoteStateEtag();
+    if (!etag) return undefined;
+    return { 'If-None-Match': etag };
+}
+
+function enqueueSyncState(appState: AppState, options?: { prioritize?: boolean }) {
+    const snapshot = structuredClone(appState);
+
+    if (options?.prioritize) {
+        pendingSyncQueue.unshift(snapshot);
+        return;
+    }
+
+    const lastQueued = pendingSyncQueue[pendingSyncQueue.length - 1];
+    if (!lastQueued) {
+        pendingSyncQueue.push(snapshot);
+        return;
+    }
+
+    if (statesEquivalentForSync(lastQueued, snapshot)) return;
+
+    // Snapshots são estados completos; manter só o mais recente pendente evita perder mudanças locais.
+    pendingSyncQueue[pendingSyncQueue.length - 1] = snapshot;
 }
 
 async function readApiErrorMessage(response: Response, fallbackMessage: string): Promise<{ message: string; code?: string }> {
@@ -285,6 +399,7 @@ async function resolveConflictWithServerState(serverShards: Record<string, strin
     const syncKey = getSyncKey();
     if (!syncKey) return setSyncStatus('syncError');
     
+    let localStateBeforeMerge: AppState | null = null;
     try {
         addSyncLog("Conflito detectado. Mesclando dados...", "info");
         const remoteShards = await decryptServerShards(serverShards, syncKey, { updateHashCache: false });
@@ -292,6 +407,8 @@ async function resolveConflictWithServerState(serverShards: Record<string, strin
         if (!remoteState) throw new Error('Falha ao reconstruir estado remoto');
 
         const localState = getPersistableState();
+        localStateBeforeMerge = localState;
+        storeConflictRecoveryBackup(localState);
 
         const mergedState = await mergeStates(localState, remoteState, {
             onDedupCandidate: ({ identity, winnerHabit, loserHabit }) => confirmDeduplicationViaModal(identity, winnerHabit, loserHabit)
@@ -300,22 +417,34 @@ async function resolveConflictWithServerState(serverShards: Record<string, strin
         await persistStateLocally(mergedState);
         await loadState(mergedState);
         renderApp();
+        clearConflictRecoveryBackup();
         
         setSyncStatus('syncSynced'); 
         addSyncLog("Mesclagem concluída.", "success");
         clearSyncHashCache(); 
         syncStateWithCloud(mergedState, true);
     } catch (error: any) {
+        if (localStateBeforeMerge) {
+            try {
+                addSyncLog('Falha ao aplicar mesclagem. Restaurando checkpoint local...', 'info');
+                await persistStateLocally(localStateBeforeMerge);
+                await loadState(localStateBeforeMerge);
+                renderApp();
+                clearConflictRecoveryBackup();
+                addSyncLog('Checkpoint local restaurado.', 'success');
+            } catch (rollbackError: any) {
+                addSyncLog(`Rollback falhou: ${rollbackError.message}`, 'error');
+            }
+        }
         addSyncLog(`Erro na resolução: ${error.message}`, "error");
         setSyncStatus('syncError');
     }
 }
 
 async function performSync() {
-    if (isSyncInProgress || !pendingSyncState) return;
+    if (isSyncInProgress || pendingSyncQueue.length === 0) return;
     isSyncInProgress = true;
-    const appState = pendingSyncState;
-    pendingSyncState = null; 
+    const appState = pendingSyncQueue.shift()!;
     let retryDelayMs = 500;
     const syncKey = getSyncKey();
     if (!syncKey) { setSyncStatus('syncError'); isSyncInProgress = false; return; }
@@ -378,6 +507,7 @@ async function performSync() {
             } catch (e) { logger.warn('[Sync] Failed to parse POST response body', e); }
             addSyncLog("Nuvem atualizada.", "success");
             setSyncStatus('syncSynced');
+            setStoredRemoteStateEtag(null);
             pendingHashUpdates.forEach((hash, shard) => lastSyncedHashes.set(shard, hash));
             persistHashCache();
             emitHabitsChanged();
@@ -406,7 +536,9 @@ async function performSync() {
         };
 
         if (isTransient) {
-            pendingSyncState = pendingSyncState || appState;
+            if (pendingSyncQueue.length === 0) {
+                enqueueSyncState(appState, { prioritize: true });
+            }
             retryDelayMs = TRANSIENT_SYNC_RETRY_DELAY_MS;
             addSyncLog(formatTransientSyncLog(error), 'info');
             setSyncStatus('syncSaving');
@@ -420,13 +552,13 @@ async function performSync() {
         }
     } finally {
         isSyncInProgress = false;
-        if (pendingSyncState) setTimeout(performSync, retryDelayMs);
+        if (pendingSyncQueue.length > 0) setTimeout(performSync, retryDelayMs);
     }
 }
 
 export function syncStateWithCloud(appState: AppState, immediate = false) {
     if (!hasLocalSyncKey()) return;
-    pendingSyncState = structuredClone(appState); 
+    enqueueSyncState(appState);
     setSyncStatus('syncSaving');
     if (isSyncInProgress) return;
     if (immediate) {
@@ -457,12 +589,13 @@ async function reconstructStateFromShards(shards: Record<string, string>): Promi
 
 export async function downloadRemoteState(): Promise<AppState | undefined> {
     addSyncLog("Baixando dados remotos...", "info");
-    const response = await apiFetch('/api/sync', {}, true);
+    const response = await apiFetch('/api/sync', { headers: buildConditionalSyncGetHeaders() }, true);
     if (response.status === 304) { addSyncLog("Sem novidades na nuvem.", "info"); return undefined; }
     if (!response.ok) {
         const parsed = await readApiErrorMessage(response, 'Falha na conexão com a nuvem');
         throw new Error(parsed.message);
     }
+    updateStoredRemoteStateEtagFromResponse(response);
     const shards = await response.json();
     if (!shards || Object.keys(shards).length === 0) { addSyncLog("Cofre vazio na nuvem.", "info"); return undefined; }
     addSyncLog("Dados baixados com sucesso.", "success");
@@ -476,13 +609,14 @@ export async function fetchStateFromCloud(): Promise<AppState | undefined> {
     }
     setSyncStatus('syncSaving'); 
     try {
-        const response = await apiFetch('/api/sync', {}, true);
+        const response = await apiFetch('/api/sync', { headers: buildConditionalSyncGetHeaders() }, true);
         if (response.status === 304) { 
             state.initialSyncDone = true;
             setSyncStatus('syncSynced'); 
             return undefined; 
         }
         if (!response.ok) throw new Error("Cloud fetch failed with status " + response.status);
+        updateStoredRemoteStateEtagFromResponse(response);
         const shards = await response.json();
         if (!shards || Object.keys(shards).length === 0) {
             state.initialSyncDone = true;
