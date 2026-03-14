@@ -202,7 +202,7 @@ function setStoredRemoteStateEtag(etag: string | null) {
 }
 
 function updateStoredRemoteStateEtagFromResponse(response: Response) {
-    const etag = response.headers.get('ETag');
+    const etag = response?.headers?.get?.('ETag') || response?.headers?.get?.('etag');
     if (etag) setStoredRemoteStateEtag(etag);
 }
 
