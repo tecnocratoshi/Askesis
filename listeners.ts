@@ -16,9 +16,9 @@ import { setupDragHandler } from './listeners/drag';
 import { setupSwipeHandler } from './listeners/swipe';
 import { setupCalendarListeners } from './listeners/calendar';
 import { setupChartListeners } from './listeners/chart';
-import { getTodayUTCIso, resetTodayCache, createDebounced, logger, getLocalPushOptIn, setLocalPushOptIn, hasRequestedPushPermission, getPushPermissionRequestAgeMs, markPushPermissionRequested, clearPushPermissionState, ensureOneSignalReady } from './utils';
+import { getTodayUTCIso, resetTodayCache, createDebounced, logger, getLocalPushOptIn, setLocalPushOptIn, hasRequestedPushPermission, getPushPermissionRequestAgeMs, markPushPermissionRequested, ensureOneSignalReady } from './utils';
 import { state, getPersistableState, invalidateCachesForDateChange } from './state';
-import { syncStateWithCloud } from './services/cloud';
+import { pullRemoteChanges, syncStateWithCloud } from './services/cloud';
 import { checkAndAnalyzeDayContext } from './services/analysis';
 import { NETWORK_DEBOUNCE_MS, INTERACTION_DELAY_MS } from './constants';
 import { APP_EVENTS, CARD_EVENTS, emitDayChanged } from './events';
@@ -34,8 +34,10 @@ const _handleNetworkChange = createDebounced(() => {
     document.body.classList.toggle('is-offline', !isOnline);
     if (wasOffline === isOnline) renderAINotificationState();
     if (isOnline) {
-        logger.info('[Network] Online stable. Flushing pending sync.');
-        syncStateWithCloud(getPersistableState());
+        logger.info('[Network] Online stable. Pulling remote changes.');
+        pullRemoteChanges().catch((error) => {
+            logger.warn('[Network] Failed to pull remote changes on reconnect.', error);
+        });
     }
 }, NETWORK_DEBOUNCE_MS);
 
@@ -112,19 +114,8 @@ export function setupEventListeners() {
 
             const permission = (Notification as any).permission || 'default';
             if (permission !== 'default') return;
-
-            // Detecção de reinstalação do PWA no iOS Safari:
-            // O WebKit reseta Notification.permission para 'default' ao desinstalar,
-            // mas preserva o localStorage. Se há estado salvo (localOptIn ou cooldown)
-            // mas o browser não tem mais a permissão, o estado é stale — limpa tudo
-            // para que o prompt apareça imediatamente no novo install.
-            const hasStaleState = getLocalPushOptIn() !== null || hasRequestedPushPermission();
-            if (hasStaleState) {
-                clearPushPermissionState();
-            }
-
-            // Só verifica cooldown se não é um reinstall (estado já foi limpo acima).
-            if (!hasStaleState && hasRequestedPushPermission()) {
+            if (getLocalPushOptIn() !== null) return;
+            if (hasRequestedPushPermission()) {
                 const ageMs = getPushPermissionRequestAgeMs();
                 if (ageMs !== null && ageMs < PUSH_PERMISSION_RETRY_COOLDOWN_MS) return;
             }
@@ -137,7 +128,9 @@ export function setupEventListeners() {
                 if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.register('./sw.js?push=1').catch(() => {});
                 }
-                ensureOneSignalReady().catch(() => {});
+                ensureOneSignalReady()
+                    .then((OneSignal) => OneSignal.Notifications.requestPermission?.().catch(() => {}))
+                    .catch(() => {});
             } else if (perm === 'denied') {
                 setLocalPushOptIn(false);
                 updateNotificationUI();
