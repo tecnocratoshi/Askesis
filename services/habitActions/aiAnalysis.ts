@@ -23,6 +23,7 @@ import { ui } from '../../render/ui';
 import { saveState } from '../persistence';
 import { runWorkerTask, addSyncLog } from '../cloud';
 import { apiFetch } from '../api';
+import type { AnalyzePostRequest } from '../../contracts/api-analyze';
 import { HabitService } from '../HabitService';
 import { PREDEFINED_HABITS } from '../../data/predefinedHabits';
 import { t, getAiLanguageName } from '../../i18n';
@@ -101,7 +102,8 @@ export async function performAIAnalysis(type: 'monthly' | 'quarterly' | 'histori
 
         if (id !== state.aiReqId) return;
 
-        const res = await apiFetch('/api/analyze', { method: 'POST', body: JSON.stringify({ prompt, systemInstruction }) });
+        const analyzeBody: AnalyzePostRequest = { prompt, systemInstruction };
+        const res = await apiFetch('/api/analyze', { method: 'POST', body: JSON.stringify(analyzeBody) });
 
         if (!res.ok) {
             let errorDetail = `Status ${res.status}`;

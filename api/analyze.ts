@@ -13,6 +13,7 @@ import {
     parseAllowedOrigins,
     parsePositiveInt
 } from './_httpSecurity';
+import type { AnalyzePostRequest } from '../contracts/api-analyze';
 
 export const config = {
   runtime: 'edge',
@@ -153,7 +154,7 @@ export default async function handler(req: Request) {
         if (bodyText === 'TIMEOUT') return new Response(null, { status: 408 });
         if (bodyText.length > MAX_PROMPT_SIZE) return new Response(null, { status: 413 });
 
-        const body = JSON.parse(bodyText);
+        const body = JSON.parse(bodyText) as Partial<AnalyzePostRequest>;
         const { prompt, systemInstruction } = body;
 
         if (!prompt || !systemInstruction) return new Response(null, { status: 400 });

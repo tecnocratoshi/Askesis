@@ -16,6 +16,7 @@ import { apiFetch } from './api';
 import { t, getAiLanguageName } from '../i18n';
 import { logger, MS_PER_DAY } from '../utils';
 import { saveState } from './persistence';
+import type { AnalyzePostRequest } from '../contracts/api-analyze';
 
 const _analysisInFlight = new Map<string, Promise<any>>();
 const MIN_AI_CONTEXT_DAYS = 7;
@@ -114,9 +115,10 @@ export async function checkAndAnalyzeDayContext(dateISO: string) {
             
             const { prompt, systemInstruction } = await runWorkerTask<any>('build-quote-analysis-prompt', promptPayload);
 
+            const analyzeBody: AnalyzePostRequest = { prompt, systemInstruction };
             const res = await apiFetch('/api/analyze', { 
                 method: 'POST', 
-                body: JSON.stringify({ prompt, systemInstruction }) 
+                body: JSON.stringify(analyzeBody) 
             });
 
             if (!res.ok) {
