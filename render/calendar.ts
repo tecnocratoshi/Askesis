@@ -293,7 +293,7 @@ function getCalendarOpticalAxisOffset(stripWidth: number): number {
     // Em telas móveis maiores, usamos apenas o eixo óptico real.
     // Em telas menores, mantemos uma suavização leve para evitar overcorrection.
     const axisOffset = stripWidth >= 390
-        ? rawAxisOffset
+        ? rawAxisOffset + 2
         : geometricCenter + ((rawAxisOffset - geometricCenter) * 0.85) - 1;
 
     return Math.max(0, Math.min(stripWidth, axisOffset));
