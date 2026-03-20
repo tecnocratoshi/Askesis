@@ -47,7 +47,7 @@
 
 @media (min-width: 390px) and (max-width: 480px) {
     .calendar-strip {
-        margin-right: calc((var(--space-sm) * -0.5) - 5px);
+        transform: translateX(5px);
     }
 }
 
