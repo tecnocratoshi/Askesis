@@ -326,7 +326,7 @@ export function scrollToSelectedDate(smooth = true) {
                 // ao eixo óptico entre o FAB e a pilha de ícones.
                 const geometricCenter = stripWidth / 2;
                 const axisDelta = axisOffset - geometricCenter;
-                const baseBreathingRoom = stripWidth >= 390 ? 10 : 12;
+                const baseBreathingRoom = stripWidth >= 390 ? 5 : 12;
                 const breathingRoom = Math.max(0, Math.min(24, baseBreathingRoom));
                 const opticalShift = Math.round(axisDelta);
 
