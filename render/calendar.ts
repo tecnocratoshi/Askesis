@@ -291,14 +291,16 @@ export function scrollToSelectedDate(smooth = true) {
             let targetScroll;
 
             if (isToday) {
-                // ALIGN START (Left boundary): hoje é o último item visível, sem datas parciais à esquerda
-                const prevSibling = selectedEl.previousElementSibling as HTMLElement;
+                // ALIGN END (Right): hoje como último item visível, centrado sem resíduo
+                // Calcula o resíduo que causa a "fatia" visível de uma data extra
+                const prevSibling = selectedEl.previousElementSibling as HTMLElement | null;
                 const gap = prevSibling
                     ? elLeft - (prevSibling.offsetLeft + prevSibling.offsetWidth)
                     : 0;
                 const step = elWidth + gap;
-                const n = step > 0 ? Math.floor((stripWidth + gap) / step) : 1;
-                targetScroll = elLeft - (n - 1) * step;
+                const remainder = step > 0 ? (stripWidth + gap) % step : 0;
+                // Desloca meio resíduo para a direita — distribui o espaço sobrante igualmente nas bordas
+                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2);
             } else {
                 // ALIGN CENTER: Contexto balanceado
                 targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);

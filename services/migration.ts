@@ -10,7 +10,7 @@
  */
 
 import { logger, getTodayUTCIso } from '../utils';
-import { AppState, SyncLog } from '../state';
+import { AppState } from '../state';
 import { normalizeHabitMode, normalizeTimesByMode, normalizeFrequencyByMode } from './habitActions';
 
 /**
@@ -43,7 +43,7 @@ function migrateBitmasksV8toV9(logs: Map<string, bigint>): Map<string, bigint> {
     return newMap;
 }
 
-export function migrateState(loadedState: unknown, targetVersion: number): AppState {
+export function migrateState(loadedState: any, targetVersion: number): AppState {
     // 1. FRESH INSTALL / NULL STATE
     if (!loadedState) {
         return { 
@@ -70,27 +70,27 @@ export function migrateState(loadedState: unknown, targetVersion: number): AppSt
 
     // 2. SCHEMA HYDRATION (Map/BigInt Reconstruction)
     if (state.monthlyLogs && !(state.monthlyLogs instanceof Map)) {
-        try {
-            const entries = Array.isArray(state.monthlyLogs) 
-                ? state.monthlyLogs 
-                : Object.entries(state.monthlyLogs);
-                
-            state.monthlyLogs = new Map(entries.map(([k, v]: [string, unknown]) => {
-                let bigVal: bigint;
-                const obj = (v !== null && typeof v === 'object') ? v as Record<string, unknown> : null;
-                if (obj && obj['__type'] === 'bigint') {
-                    bigVal = BigInt(obj['val'] as string);
+        const entries = Array.isArray(state.monthlyLogs)
+            ? state.monthlyLogs
+            : Object.entries(state.monthlyLogs);
+
+        const validEntries: [string, bigint][] = [];
+        for (const [k, v] of entries as [string, any][]) {
+            try {
+                let val: bigint;
+                if (v && typeof v === 'object' && v.__type === 'bigint') {
+                    val = BigInt(v.val);
                 } else if (typeof v === 'bigint') {
-                    bigVal = v;
+                    val = v;
                 } else {
-                    bigVal = BigInt(v as string);
+                    val = BigInt(v);
                 }
-                return [k, bigVal] as [string, bigint];
-            }));
-        } catch (e) {
-            logger.warn("[Migration] Failed to hydrate monthlyLogs", e);
-            state.monthlyLogs = new Map();
+                validEntries.push([k, val]);
+            } catch (e) {
+                logger.warn(`[Migration] Skipping invalid monthlyLogs entry "${k}":`, e);
+            }
         }
+        state.monthlyLogs = new Map(validEntries);
     } else if (!state.monthlyLogs) {
         state.monthlyLogs = new Map();
     }
@@ -109,23 +109,23 @@ export function migrateState(loadedState: unknown, targetVersion: number): AppSt
     // 4. SCHEMA UPGRADE: V9 -> V10 (AI Quota & Hash)
     // Inicializa campos de quota se não existirem
     if (state.aiDailyCount === undefined) {
-        state.aiDailyCount = 0;
-        state.aiQuotaDate = getTodayUTCIso();
-        state.lastAIContextHash = null;
+        (state as any).aiDailyCount = 0;
+        (state as any).aiQuotaDate = getTodayUTCIso();
+        (state as any).lastAIContextHash = null;
     }
 
     if (state.hasOnboarded === undefined) {
-        Object.assign(state, { hasOnboarded: true });
+        (state as any).hasOnboarded = true;
     }
 
     if (!state.syncLogs) {
-        Object.assign(state, { syncLogs: [] });
+        (state as any).syncLogs = [];
     } else {
-        Object.assign(state, { syncLogs: state.syncLogs.map((log: SyncLog) => ({
+        (state as any).syncLogs = state.syncLogs.map((log: any) => ({
             time: log.time,
             msg: log.msg,
             type: log.type
-        })) });
+        }));
     }
 
     // Sanitize scheduleHistory mode/times to avoid duplicate TimeOfDay entries
@@ -136,7 +136,7 @@ export function migrateState(loadedState: unknown, targetVersion: number): AppSt
                 const schedule = habit.scheduleHistory[i];
                 const normalizedMode = normalizeHabitMode(schedule.mode);
                 const normalizedTimes = normalizeTimesByMode(normalizedMode, schedule.times);
-                const normalizedFrequency = normalizeFrequencyByMode(normalizedMode, schedule.frequency);
+                const normalizedFrequency = normalizeFrequencyByMode(normalizedMode, schedule.frequency as any);
                 const hadModeChange = schedule.mode !== normalizedMode;
                 const hadTimesChange =
                     normalizedTimes.length !== schedule.times.length
@@ -144,24 +144,24 @@ export function migrateState(loadedState: unknown, targetVersion: number): AppSt
                 const hadFrequencyChange = JSON.stringify(normalizedFrequency) !== JSON.stringify(schedule.frequency);
 
                 if (hadModeChange) {
-                    Object.assign(habit.scheduleHistory[i], { mode: normalizedMode });
+                    (habit.scheduleHistory[i] as any).mode = normalizedMode;
                 }
 
                 if (hadTimesChange) {
                     logger.warn(`[Migration] Habit "${schedule.name}": normalized times for mode=${normalizedMode}`);
-                    Object.assign(habit.scheduleHistory[i], { times: normalizedTimes });
+                    (habit.scheduleHistory[i] as any).times = normalizedTimes;
                 }
 
                 if (hadFrequencyChange) {
                     logger.warn(`[Migration] Habit "${schedule.name}": normalized frequency for mode=${normalizedMode}`);
-                    Object.assign(habit.scheduleHistory[i], { frequency: normalizedFrequency });
+                    (habit.scheduleHistory[i] as any).frequency = normalizedFrequency;
                 }
             }
         }
     }
 
     // Force target version
-    Object.assign(state, { version: targetVersion });
+    (state as any).version = targetVersion;
     
     return state;
 }

@@ -117,6 +117,26 @@ describe('🔄 Migração de Schema (migration.ts)', () => {
             expect(result.monthlyLogs.get('k1')).toBe(42n);
         });
 
+        it('deve pular entradas inválidas e preservar as válidas', () => {
+            const loaded = {
+                version: APP_VERSION,
+                habits: [],
+                monthlyLogs: {
+                    'valid-key': '255',
+                    'bad-key': 'não-é-número',
+                    'another-valid': '1023'
+                }
+            };
+
+            const result = migrateState(loaded, APP_VERSION);
+            expect(result.monthlyLogs).toBeInstanceOf(Map);
+            // Entradas válidas devem ser preservadas
+            expect(result.monthlyLogs.get('valid-key')).toBe(255n);
+            expect(result.monthlyLogs.get('another-valid')).toBe(1023n);
+            // Entrada inválida deve ser ignorada
+            expect(result.monthlyLogs.has('bad-key')).toBe(false);
+        });
+
         it('deve lidar graciosamente com valores inválidos de BigInt', () => {
             const loaded = {
                 version: APP_VERSION,
