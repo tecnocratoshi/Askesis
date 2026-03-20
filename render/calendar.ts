@@ -336,8 +336,11 @@ export function scrollToSelectedDate(smooth = true) {
                 // ao eixo óptico entre o FAB e a pilha de ícones.
                 const geometricCenter = stripWidth / 2;
                 const axisDelta = axisOffset - geometricCenter;
-                const baseBreathingRoom = 12;
-                const breathingRoom = Math.max(6, Math.min(24, Math.round(baseBreathingRoom - (axisDelta * 1.25))));
+                const largeMobileRightShift = stripWidth >= 390
+                    ? Math.min(5, Math.round((stripWidth - 390) / 8) + 1)
+                    : 0;
+                const baseBreathingRoom = Math.max(6, 12 - largeMobileRightShift);
+                const breathingRoom = Math.max(0, Math.min(24, Math.round(baseBreathingRoom - (axisDelta * 1.35))));
 
                 // Sincroniza o ponto de snap do CSS com o offset desejado.
                 // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
