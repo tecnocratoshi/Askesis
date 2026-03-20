@@ -51,6 +51,17 @@ if (self.workbox) {
         new self.workbox.strategies.NetworkOnly()
     );
 
+    // CONTENT HASHING: CacheFirst para bundles com hash imutável (bundle-[hash].js / bundle-[hash].css).
+    // Estes arquivos são imutáveis por definição — qualquer mudança de código gera um hash novo e uma URL nova.
+    // Podem ser cacheados para sempre: o SW nunca servirá código desatualizado para assets hasheados.
+    // IMPORTANTE: deve ser registrado ANTES do StaleWhileRevalidate genérico para ter precedência.
+    self.workbox.routing.registerRoute(
+        ({ url }) => /^\/bundle-[A-Za-z0-9]+\.(js|css)$/.test(url.pathname),
+        new self.workbox.strategies.CacheFirst({
+            cacheName: 'askesis-hashed-bundles',
+        })
+    );
+
     self.workbox.routing.registerRoute(
         ({ request }) => request.mode === 'navigate',
         new self.workbox.strategies.NetworkFirst({

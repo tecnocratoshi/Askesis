@@ -34,13 +34,12 @@ async function build() {
     }
     await fs.promises.mkdir(OUT_DIR, { recursive: true });
 
-    // 1. Bundle App (index.tsx -> bundle.js + bundle.css)
-    const ctx = await esbuild.context({
-        entryPoints: ['index.tsx'],
+    // 1. Bundle App (index.tsx -> bundle.[hash].js + bundle.[hash].css em prod)
+    let jsBundleName  = 'bundle.js';
+    let cssBundleName = 'bundle.css';
+
+    const sharedBuildOptions = {
         bundle: true,
-        outfile: path.join(OUT_DIR, 'bundle.js'),
-        minify: isProd,
-        sourcemap: !isProd,
         format: 'esm',
         target: ['es2020'],
         define: {
@@ -54,12 +53,43 @@ async function build() {
             '.gif': 'file',
         },
         logLevel: 'info',
-    });
+    };
 
     if (isProd) {
-        await ctx.rebuild();
-        await ctx.dispose();
+        // CONTENT HASHING: filenames imutáveis permitem CacheFirst no Service Worker.
+        // Qualquer mudança de código gera um hash novo → URL nova → browser/SW tratam como arquivo novo.
+        const buildResult = await esbuild.build({
+            ...sharedBuildOptions,
+            entryPoints: { bundle: 'index.tsx' }, // chave 'bundle' → saída 'bundle-[hash].js'
+            outdir: OUT_DIR,
+            entryNames: '[name]-[hash]',
+            minify: true,
+            sourcemap: false,
+            metafile: true,
+        });
+
+        const outputs = Object.keys(buildResult.metafile.outputs);
+        const jsOut   = outputs.find(f => path.basename(f).match(/^bundle-[A-Za-z0-9]+\.js$/));
+        const cssOut  = outputs.find(f => path.basename(f).match(/^bundle-[A-Za-z0-9]+\.css$/));
+
+        if (!jsOut || !cssOut) {
+            console.error('Error: Could not find hashed bundle outputs. Available:', outputs);
+            process.exit(1);
+        }
+
+        jsBundleName  = path.basename(jsOut);
+        cssBundleName = path.basename(cssOut);
+        console.log(`Content-hashed bundles: ${jsBundleName}, ${cssBundleName}`);
+
     } else {
+        // Desenvolvimento: nomes fixos + watch mode (sem overhead de hash em dev)
+        const ctx = await esbuild.context({
+            ...sharedBuildOptions,
+            entryPoints: ['index.tsx'],
+            outfile: path.join(OUT_DIR, 'bundle.js'),
+            minify: false,
+            sourcemap: true,
+        });
         await ctx.watch();
     }
 
@@ -83,24 +113,36 @@ async function build() {
         }
     };
 
-    // Copy index.html as-is.
-    // Contract: index.html must reference only build artifacts (bundle.js / bundle.css).
+    // Processa index.html: valida contrato do source, depois injeta nomes hasheados em prod.
     const indexHtmlPath = path.resolve(__dirname, 'index.html');
     if (!fs.existsSync(indexHtmlPath)) {
         console.error("Error: index.html not found.");
         process.exit(1);
     }
-    if (isProd) {
-        const html = await fs.promises.readFile(indexHtmlPath, 'utf-8');
-        if (!html.includes('bundle.js')) {
-            console.error('Error: index.html must include bundle.js for production builds.');
-            process.exit(1);
-        }
+    let html = await fs.promises.readFile(indexHtmlPath, 'utf-8');
+    if (!html.includes('bundle.js')) {
+        console.error('Error: index.html must reference bundle.js (source contract).');
+        process.exit(1);
     }
-    await copyFile('index.html', path.join(OUT_DIR, 'index.html'));
+    if (isProd) {
+        // Substitui os placeholders do source pelos nomes com content hash.
+        // Captura href="bundle.css", src="bundle.js", link rel="modulepreload" etc.
+        html = html
+            .replace(/"bundle\.css"/g, `"${cssBundleName}"`)
+            .replace(/"bundle\.js"/g,  `"${jsBundleName}"`);
+    }
+    await fs.promises.writeFile(path.join(OUT_DIR, 'index.html'), html);
 
     await copyFile('manifest.json', path.join(OUT_DIR, 'manifest.json'));
-    await copyFile('sw.js', path.join(OUT_DIR, 'sw.js'));
+
+    // Processa sw.js: injeta nomes hasheados no CACHE_FILES do fallback em prod.
+    let swSrc = await fs.promises.readFile(path.resolve(__dirname, 'sw.js'), 'utf-8');
+    if (isProd) {
+        swSrc = swSrc
+            .replace("'/bundle.js'",  `'/${jsBundleName}'`)
+            .replace("'/bundle.css'", `'/${cssBundleName}'`);
+    }
+    await fs.promises.writeFile(path.join(OUT_DIR, 'sw.js'), swSrc);
     
     // Copy Dirs
     await copyDir(path.resolve(__dirname, 'locales'), path.join(OUT_DIR, 'locales'));
