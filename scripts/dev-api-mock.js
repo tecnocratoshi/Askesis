@@ -15,9 +15,6 @@ const MOCK_DB_FILE = '.local-kv.json';
 const MAX_PAYLOAD_SIZE = 4 * 1024 * 1024; // 4MB Hard Limit
 const HEADERS_JSON = { 'Content-Type': 'application/json' };
 
-// Accepts hex hashes (SHA-256 = 64 chars, SHA-512 = 128 chars) as produced by services/api.ts
-const KEY_HASH_RE = /^[0-9a-f]{32,128}$/i;
-
 // --- HELPERS ---
 const sendJSON = (res, status, data) => {
     if (!res.headersSent) {
@@ -65,10 +62,10 @@ async function withDbAtomic(operation) {
 
 async function handleApiSync(req, res) {
     return new Promise((resolve) => {
-        // Error Handler Wrapper — do not expose internal error message to clients
+        // Error Handler Wrapper
         const handleError = (e, context) => {
             console.error(`API Mock Error (${context}):`, e);
-            sendError(res, 500, 'Internal Server Error');
+            sendError(res, 500, e.message);
             resolve();
         };
 
@@ -81,7 +78,7 @@ async function handleApiSync(req, res) {
 
         if (req.method === 'GET') {
             const keyHash = req.headers['x-sync-key-hash'];
-            if (!keyHash || !KEY_HASH_RE.test(keyHash)) {
+            if (!keyHash) {
                 sendError(res, 401, 'Unauthorized');
                 return resolve();
             }
@@ -117,7 +114,7 @@ async function handleApiSync(req, res) {
                     const body = Buffer.concat(chunks).toString();
                     const keyHash = req.headers['x-sync-key-hash'];
                     
-                    if (!keyHash || !KEY_HASH_RE.test(keyHash)) {
+                    if (!keyHash) {
                         sendError(res, 401, 'Unauthorized');
                         return resolve();
                     }
@@ -127,11 +124,6 @@ async function handleApiSync(req, res) {
                         payload = JSON.parse(body);
                     } catch (jsonErr) {
                         sendError(res, 400, 'Invalid JSON');
-                        return resolve();
-                    }
-
-                    if (!payload || typeof payload !== 'object' || typeof payload.lastModified !== 'number') {
-                        sendError(res, 400, 'Invalid payload: lastModified must be a number');
                         return resolve();
                     }
                     
