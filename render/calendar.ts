@@ -290,14 +290,19 @@ export function scrollToSelectedDate(smooth = true) {
             
             let targetScroll;
 
+            // Evita estado residual de snap quando alternamos entre "hoje" e outras datas.
+            ui.calendarStrip.style.scrollPaddingInlineEnd = '';
+
             if (isToday) {
-                // ALIGN END (Right): hoje como último item visível, com respiro configurável
+                // ALIGN END (Right): hoje como último item visível, com respiro adaptativo.
                 const isMobile = stripWidth < 500;
-                const breathingRoom = isMobile ? 11 : 0;
+                const breathingRoom = isMobile
+                    ? Math.max(8, Math.min(16, Math.round(stripWidth * 0.032)))
+                    : 0;
 
                 // Sincroniza o ponto de snap do CSS com o offset desejado.
                 // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
-                ui.calendarStrip.style.scrollPaddingInlineEnd = isMobile ? '11px' : '';
+                if (isMobile) ui.calendarStrip.style.scrollPaddingInlineEnd = `${breathingRoom}px`;
 
                 const prevSibling = selectedEl.previousElementSibling as HTMLElement | null;
                 const gap = prevSibling
