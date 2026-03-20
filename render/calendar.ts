@@ -272,35 +272,24 @@ export function renderFullCalendar() {
     ui.fullCalendarGrid.appendChild(frag);
 }
 
-function getTodayBreathingRoom(stripWidth: number): number {
-    if (!ui.calendarStrip || stripWidth >= 500) return 0;
+function getCalendarOpticalAxisOffset(stripWidth: number): number {
+    if (!ui.calendarStrip || stripWidth >= 500) return stripWidth / 2;
 
-    const headerTop = ui.calendarStrip.parentElement as HTMLElement | null;
     const fab = ui.fabAddHabit as HTMLElement | null;
     const iconStack = ui.manageHabitsBtn?.parentElement as HTMLElement | null;
-    if (!headerTop || !fab || !iconStack) {
-        return Math.max(8, Math.min(16, Math.round(stripWidth * 0.032)));
+    if (!fab || !iconStack) {
+        return stripWidth / 2;
     }
 
-    const headerRect = headerTop.getBoundingClientRect();
-    const fabRect = fab.getBoundingClientRect();
     const stripRect = ui.calendarStrip.getBoundingClientRect();
+    const fabRect = fab.getBoundingClientRect();
     const iconRect = iconStack.getBoundingClientRect();
-    const leftOccupied = Math.max(0, Math.round(stripRect.left - headerRect.left));
-    const rightOccupied = Math.max(0, Math.round(headerRect.right - stripRect.right));
-    const outsideLeftGap = Math.max(0, Math.round(stripRect.left - fabRect.right));
-    const outsideGap = Math.max(0, Math.round(iconRect.left - stripRect.right));
+    const fabCenterX = fabRect.left + (fabRect.width / 2);
+    const iconCenterX = iconRect.left + (iconRect.width / 2);
+    const opticalAxisX = (fabCenterX + iconCenterX) / 2;
+    const axisOffset = opticalAxisX - stripRect.left;
 
-    // Compensa a assimetria visual real do header: se o lado direito ocupa mais espaço que o esquerdo,
-    // adicionamos respiro interno para puxar o último dia um pouco para a esquerda.
-    const baseGap = Math.max(10, Math.min(14, Math.round(stripWidth * 0.015) + 8));
-    const asymmetryCompensation = Math.max(
-        0,
-        Math.round(((rightOccupied - leftOccupied) + (outsideLeftGap - outsideGap)) * 0.5)
-    );
-    const desiredTotalGap = Math.max(10, Math.min(20, baseGap + asymmetryCompensation));
-
-    return Math.max(0, desiredTotalGap - outsideGap);
+    return Math.max(0, Math.min(stripWidth, axisOffset));
 }
 
 /**
@@ -318,6 +307,7 @@ export function scrollToSelectedDate(smooth = true) {
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
             const isToday = selectedEl.classList.contains(CSS_CLASSES.TODAY);
+            const axisOffset = getCalendarOpticalAxisOffset(stripWidth);
             
             let targetScroll;
 
@@ -325,8 +315,9 @@ export function scrollToSelectedDate(smooth = true) {
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
             if (isToday) {
-                // ALIGN END (Right): hoje como último item visível, com respiro adaptativo.
-                const breathingRoom = getTodayBreathingRoom(stripWidth);
+                // ALIGN END (Right): hoje como último item visível, alinhando a janela visível
+                // ao eixo óptico entre o FAB e a pilha de ícones.
+                const breathingRoom = Math.max(0, Math.min(24, Math.round(stripWidth - (axisOffset * 2))));
 
                 // Sincroniza o ponto de snap do CSS com o offset desejado.
                 // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
@@ -342,8 +333,9 @@ export function scrollToSelectedDate(smooth = true) {
                 const remainder = step > 0 ? (visibleArea + gap) % step : 0;
                 targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + breathingRoom;
             } else {
-                // ALIGN CENTER: Contexto balanceado
-                targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
+                // ALIGN OPTICAL CENTER: em mobile, centraliza no eixo óptico do header;
+                // fora disso, preserva o centro geométrico original.
+                targetScroll = elLeft - axisOffset + (elWidth / 2);
             }
             
             ui.calendarStrip.scrollTo({
