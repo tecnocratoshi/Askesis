@@ -45,6 +45,12 @@
     margin-right: calc(var(--space-sm) * -0.5);
 }
 
+@media (min-width: 390px) and (max-width: 480px) {
+    .calendar-strip {
+        margin-right: calc((var(--space-sm) * -0.5) - 5px);
+    }
+}
+
 /* TABLET/DESKTOP ADJUSTMENT [2025-05-15]: Aumenta o espaço entre o botão de adicionar e o calendário. */
 @media (min-width: 481px) {
     #fab-add-habit {
