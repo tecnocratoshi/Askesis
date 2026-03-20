@@ -294,7 +294,10 @@ function getCalendarOpticalAxisOffset(stripWidth: number): number {
     // - telas menores tendem a precisar alguns px a menos para a direita
     // - telas maiores tendem a precisar alguns px a mais para a direita
     // Além disso, suavizamos o eixo óptico bruto para evitar overcorrection.
-    const widthBias = Math.max(-3, Math.min(5, Math.round((stripWidth - 375) / 16)));
+    const largeMobileBoost = stripWidth >= 390
+        ? Math.min(4, Math.round((stripWidth - 390) / 10) + 1)
+        : 0;
+    const widthBias = Math.max(-3, Math.min(8, Math.round((stripWidth - 375) / 16) + largeMobileBoost));
     const axisOffset = geometricCenter + ((rawAxisOffset - geometricCenter) * 0.85) + widthBias;
 
     return Math.max(0, Math.min(stripWidth, axisOffset));
