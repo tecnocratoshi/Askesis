@@ -325,7 +325,10 @@ export function scrollToSelectedDate(smooth = true) {
             if (isToday) {
                 // ALIGN END (Right): hoje como último item visível, alinhando a janela visível
                 // ao eixo óptico entre o FAB e a pilha de ícones.
-                const breathingRoom = Math.max(0, Math.min(24, Math.round(stripWidth - (axisOffset * 2))));
+                const geometricCenter = stripWidth / 2;
+                const axisDelta = axisOffset - geometricCenter;
+                const baseBreathingRoom = 12;
+                const breathingRoom = Math.max(6, Math.min(24, Math.round(baseBreathingRoom - (axisDelta * 1.25))));
 
                 // Sincroniza o ponto de snap do CSS com o offset desejado.
                 // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
