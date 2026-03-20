@@ -293,7 +293,7 @@ function getCalendarOpticalAxisOffset(stripWidth: number): number {
     // Em telas móveis maiores, usamos apenas o eixo óptico real.
     // Em telas menores, mantemos uma suavização leve para evitar overcorrection.
     const axisOffset = stripWidth >= 390
-        ? rawAxisOffset + 20
+        ? rawAxisOffset + 2
         : geometricCenter + ((rawAxisOffset - geometricCenter) * 0.85) - 1;
 
     return Math.max(0, Math.min(stripWidth, axisOffset));
@@ -327,7 +327,8 @@ export function scrollToSelectedDate(smooth = true) {
                 const geometricCenter = stripWidth / 2;
                 const axisDelta = axisOffset - geometricCenter;
                 const baseBreathingRoom = stripWidth >= 390 ? 10 : 12;
-                const breathingRoom = Math.max(0, Math.min(24, Math.round(baseBreathingRoom - (axisDelta * 1.2))));
+                const breathingRoom = Math.max(0, Math.min(24, baseBreathingRoom));
+                const opticalShift = Math.round(axisDelta);
 
                 // Sincroniza o ponto de snap do CSS com o offset desejado.
                 // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
@@ -341,7 +342,7 @@ export function scrollToSelectedDate(smooth = true) {
                 // Calcula o resíduo na área visível efetiva (descontando o respiro)
                 const visibleArea = stripWidth - breathingRoom;
                 const remainder = step > 0 ? (visibleArea + gap) % step : 0;
-                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + breathingRoom;
+                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + breathingRoom - opticalShift;
             } else {
                 // ALIGN OPTICAL CENTER: em mobile, centraliza no eixo óptico do header;
                 // fora disso, preserva o centro geométrico original.
