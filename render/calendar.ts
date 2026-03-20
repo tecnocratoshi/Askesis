@@ -275,21 +275,30 @@ export function renderFullCalendar() {
 function getTodayBreathingRoom(stripWidth: number): number {
     if (!ui.calendarStrip || stripWidth >= 500) return 0;
 
+    const headerTop = ui.calendarStrip.parentElement as HTMLElement | null;
+    const fab = ui.fabAddHabit as HTMLElement | null;
     const iconStack = ui.manageHabitsBtn?.parentElement as HTMLElement | null;
-    if (!iconStack) {
+    if (!headerTop || !fab || !iconStack) {
         return Math.max(8, Math.min(16, Math.round(stripWidth * 0.032)));
     }
 
+    const headerRect = headerTop.getBoundingClientRect();
+    const fabRect = fab.getBoundingClientRect();
     const stripRect = ui.calendarStrip.getBoundingClientRect();
     const iconRect = iconStack.getBoundingClientRect();
+    const leftOccupied = Math.max(0, Math.round(stripRect.left - headerRect.left));
+    const rightOccupied = Math.max(0, Math.round(headerRect.right - stripRect.right));
+    const outsideLeftGap = Math.max(0, Math.round(stripRect.left - fabRect.right));
     const outsideGap = Math.max(0, Math.round(iconRect.left - stripRect.right));
 
-    // Define a folga total desejada entre o último dia visível e a coluna de ícones.
-    // O cálculo usa a largura real da fita e o peso visual real do bloco de ícones.
-    const desiredTotalGap = Math.max(
-        12,
-        Math.min(18, Math.round((iconRect.width * 0.2) + (stripWidth * 0.01)))
+    // Compensa a assimetria visual real do header: se o lado direito ocupa mais espaço que o esquerdo,
+    // adicionamos respiro interno para puxar o último dia um pouco para a esquerda.
+    const baseGap = Math.max(10, Math.min(14, Math.round(stripWidth * 0.015) + 8));
+    const asymmetryCompensation = Math.max(
+        0,
+        Math.round(((rightOccupied - leftOccupied) + (outsideLeftGap - outsideGap)) * 0.5)
     );
+    const desiredTotalGap = Math.max(10, Math.min(20, baseGap + asymmetryCompensation));
 
     return Math.max(0, desiredTotalGap - outsideGap);
 }
