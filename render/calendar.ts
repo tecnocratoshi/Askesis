@@ -306,7 +306,7 @@ export function scrollToSelectedDate(smooth = true) {
                 targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
             }
             // Ajuste visual: recua 15px para a esquerda para melhor percepção de profundidade
-            targetScroll -= 15;
+            targetScroll -= 35;
             
             ui.calendarStrip.scrollTo({
                 left: targetScroll,
