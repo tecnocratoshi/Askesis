@@ -300,12 +300,13 @@ export function scrollToSelectedDate(smooth = true) {
                 const step = elWidth + gap;
                 const remainder = step > 0 ? (stripWidth + gap) % step : 0;
                 // Desloca meio resíduo para a direita — distribui o espaço sobrante igualmente nas bordas
-                // -10 = ajuste visual fino para alinhar melhor a borda esquerda dos itens
-                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) - 10;
+                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2);
             } else {
                 // ALIGN CENTER: Contexto balanceado
                 targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
             }
+            // Ajuste visual: recua 15px para a esquerda para melhor percepção de profundidade
+            targetScroll -= 15;
             
             ui.calendarStrip.scrollTo({
                 left: targetScroll,
