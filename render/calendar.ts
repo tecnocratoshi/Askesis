@@ -300,7 +300,8 @@ export function scrollToSelectedDate(smooth = true) {
                 const step = elWidth + gap;
                 const remainder = step > 0 ? (stripWidth + gap) % step : 0;
                 // Desloca meio resíduo para a direita — distribui o espaço sobrante igualmente nas bordas
-                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2);
+                // -5 = ajuste visual fino para alinhar melhor a borda esquerda dos itens
+                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) - 5;
             } else {
                 // ALIGN CENTER: Contexto balanceado
                 targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
