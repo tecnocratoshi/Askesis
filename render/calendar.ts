@@ -302,7 +302,7 @@ export function scrollToSelectedDate(smooth = true) {
                 // Desloca meio resíduo para a direita — distribui o espaço sobrante igualmente nas bordas
                 targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2);
                 // Em mobile, recua 10px para aumentar o respiro entre a data atual e os ícones da header
-                if (stripWidth < 500) targetScroll -= 20;
+                if (stripWidth < 500) targetScroll -= 120;
             } else {
                 // ALIGN CENTER: Contexto balanceado
                 targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
