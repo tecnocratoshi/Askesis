@@ -11,7 +11,7 @@
     user-select: none;
     contain: content;
     overscroll-behavior: contain;
-    scroll-snap-type: x proximity;
+    scroll-snap-type: x mandatory;
     padding-inline-start: 0;
     padding-inline-end: 0;
 }
@@ -28,7 +28,7 @@
     transition: background-color var(--transition-duration), transform 0.1s ease-out;
     border: 2px solid transparent;
     flex-shrink: 0;
-    scroll-snap-align: end;
+    scroll-snap-align: start;
 }
 
 .day-item.selected { 
