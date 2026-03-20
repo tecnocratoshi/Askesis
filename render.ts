@@ -20,17 +20,16 @@ import { calculateDaySummary } from './services/selectors';
 import { APP_EVENTS, emitRequestAnalysis } from './events';
 
 // Importa os renderizadores especializados
-import { setTextContent, updateReelRotaryARIA, setTrustedSvgContent } from './render/dom';
-import { renderCalendar } from './render/calendar';
-import { renderFullCalendar } from './render/calendarGrid';
+import { setTextContent, updateReelRotaryARIA } from './render/dom';
+import { renderCalendar, renderFullCalendar } from './render/calendar';
 import { renderHabits } from './render/habits';
 import { renderChart } from './render/chart';
 import { setupManageModal, refreshEditModalUI, renderLanguageFilter, renderIconPicker, renderFrequencyOptions, openModal, showConfirmationModal } from './render/modals';
 
 // Re-exporta tudo para manter compatibilidade
+// Exports explícitos resolvem ambiguidade TS2308 em tsconfig.app.json
+export { updateDayVisuals, renderCalendar, appendDayToStrip, prependDayToStrip, renderFullCalendar, scrollToSelectedDate } from './render/calendar';
 export * from './render/dom';
-export * from './render/calendar';
-export * from './render/calendarGrid';
 export * from './render/habits';
 export * from './render/modals';
 export * from './render/chart';
@@ -76,6 +75,10 @@ let _cachedQuoteState: { id: string, contextKey: string } | null = null;
 let _cachedRefToday: string | null = null;
 let _cachedYesterdayISO: string | null = null;
 let _cachedTomorrowISO: string | null = null;
+
+function replaceWithHtmlFragment(target: HTMLElement, html: string) {
+    target.replaceChildren(document.createRange().createContextualFragment(html));
+}
 
 const OPTS_HEADER_DESKTOP: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', timeZone: 'UTC' };
 const OPTS_HEADER_ARIA: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' };
@@ -125,9 +128,9 @@ function _updateHeaderTitle() {
 }
 
 function _renderHeaderIcons() {
-    if (!ui.manageHabitsBtn.hasChildNodes()) setTrustedSvgContent(ui.manageHabitsBtn, UI_ICONS.settings);
+    if (!ui.manageHabitsBtn.hasChildNodes()) replaceWithHtmlFragment(ui.manageHabitsBtn, UI_ICONS.settings);
     const defaultIconSpan = ui.aiEvalBtn.querySelector('.default-icon');
-    if (defaultIconSpan && !defaultIconSpan.hasChildNodes()) setTrustedSvgContent(defaultIconSpan as HTMLElement, UI_ICONS.ai);
+    if (defaultIconSpan && !defaultIconSpan.hasChildNodes()) replaceWithHtmlFragment(defaultIconSpan as HTMLElement, UI_ICONS.ai);
 }
 
 export function updateUIText() {
@@ -197,13 +200,13 @@ export function updateUIText() {
         const expectedText = ` ${text}`;
 
         if (hasSingleTextNode && currentText === text) {
-            setTrustedSvgContent(btn, icon);
+            replaceWithHtmlFragment(btn, icon);
             btn.append(document.createTextNode(expectedText));
             return;
         }
 
         if (currentText.trim() !== text || btn.childNodes.length < 2) {
-            setTrustedSvgContent(btn, icon);
+            replaceWithHtmlFragment(btn, icon);
             btn.append(document.createTextNode(expectedText));
         }
     };
@@ -224,7 +227,7 @@ export function viewTransitionRender(direction?: 'forward' | 'back') {
     if ('startViewTransition' in document) {
         const dir = direction || 'forward';
         document.documentElement.dataset.flipDir = dir;
-        const vt = document.startViewTransition!(() => renderApp());
+        const vt = (document as any).startViewTransition(() => renderApp());
         vt.finished.then(() => { delete document.documentElement.dataset.flipDir; }).catch(() => { delete document.documentElement.dataset.flipDir; });
     } else {
         renderApp();
@@ -237,11 +240,11 @@ export function renderApp() {
     renderCalendar();
     renderHabits();
 
-    if ('scheduler' in window && window.scheduler) {
-        window.scheduler.postTask(() => {
+    if ('scheduler' in window && (window as any).scheduler) {
+        (window as any).scheduler.postTask(() => {
             renderAINotificationState();
             renderChart();
-            window.scheduler!.postTask(() => renderStoicQuote(), { priority: 'background' });
+            (window as any).scheduler!.postTask(() => renderStoicQuote(), { priority: 'background' });
         }, { priority: 'user-visible' });
     } else {
         requestAnimationFrame(() => {
@@ -262,8 +265,8 @@ export function updateNotificationUI() {
     }
 
     // Zero-deps por padrão: se OneSignal não estiver carregado, usa permissões nativas.
-    if (typeof window === 'undefined' || typeof window.OneSignal === 'undefined') {
-        const permission = (typeof Notification !== 'undefined' && Notification.permission) ? Notification.permission : 'default';
+    if (typeof window === 'undefined' || typeof (window as any).OneSignal === 'undefined') {
+        const permission = (typeof Notification !== 'undefined' && (Notification as any).permission) ? (Notification as any).permission : 'default';
         const isDenied = permission === 'denied';
         const localOptIn = getLocalPushOptIn();
         const isGranted = permission === 'granted';
@@ -282,17 +285,8 @@ export function updateNotificationUI() {
     pushToOneSignal((OneSignal: OneSignalLike) => {
         const isPushEnabled = OneSignal.User.PushSubscription.optedIn;
         const permission = OneSignal.Notifications.permission;
-        // Chrome/Brave Android, Safari e outros: não sobrescrever localOptIn para false se a
-        // permissão nativa ainda é 'granted'. O OneSignal pode reportar optedIn=false enquanto
-        // a subscription assíncrona ainda está sendo finalizada.
-        const nativePerm = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
-        if (isPushEnabled || nativePerm !== 'granted') {
-            setLocalPushOptIn(!!isPushEnabled);
-        }
-        // Usa o estado mais confiável: se o OneSignal já confirma optedIn, usa isso;
-        // senão, se a permissão nativa está concedida e o usuário optou, mantém ativo.
-        const effectiveEnabled = isPushEnabled || (nativePerm === 'granted' && getLocalPushOptIn() === true);
-        if (ui.notificationToggle.checked !== !!effectiveEnabled) ui.notificationToggle.checked = !!effectiveEnabled;
+        setLocalPushOptIn(!!isPushEnabled);
+        if (ui.notificationToggle.checked !== !!isPushEnabled) ui.notificationToggle.checked = !!isPushEnabled;
         const isDenied = permission === 'denied';
         if (ui.notificationToggle.disabled !== isDenied) {
             ui.notificationToggle.disabled = isDenied;
@@ -300,7 +294,7 @@ export function updateNotificationUI() {
         }
         let statusTextKey = 'notificationStatusOptedOut';
         if (isDenied) statusTextKey = 'notificationStatusDisabled';
-        else if (effectiveEnabled) statusTextKey = 'notificationStatusEnabled';
+        else if (isPushEnabled) statusTextKey = 'notificationStatusEnabled';
         setTextContent(ui.notificationStatusDesc, t(statusTextKey));
     });
 }
