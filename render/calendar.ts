@@ -272,6 +272,28 @@ export function renderFullCalendar() {
     ui.fullCalendarGrid.appendChild(frag);
 }
 
+function getTodayBreathingRoom(stripWidth: number): number {
+    if (!ui.calendarStrip || stripWidth >= 500) return 0;
+
+    const iconStack = ui.manageHabitsBtn?.parentElement as HTMLElement | null;
+    if (!iconStack) {
+        return Math.max(8, Math.min(16, Math.round(stripWidth * 0.032)));
+    }
+
+    const stripRect = ui.calendarStrip.getBoundingClientRect();
+    const iconRect = iconStack.getBoundingClientRect();
+    const outsideGap = Math.max(0, Math.round(iconRect.left - stripRect.right));
+
+    // Define a folga total desejada entre o último dia visível e a coluna de ícones.
+    // O cálculo usa a largura real da fita e o peso visual real do bloco de ícones.
+    const desiredTotalGap = Math.max(
+        12,
+        Math.min(18, Math.round((iconRect.width * 0.2) + (stripWidth * 0.01)))
+    );
+
+    return Math.max(0, desiredTotalGap - outsideGap);
+}
+
 /**
  * Rola a fita para posicionar o elemento selecionado.
  * LÓGICA CONTEXTUAL: "Hoje" alinha à direita (histórico), outros centralizam.
@@ -295,14 +317,11 @@ export function scrollToSelectedDate(smooth = true) {
 
             if (isToday) {
                 // ALIGN END (Right): hoje como último item visível, com respiro adaptativo.
-                const isMobile = stripWidth < 500;
-                const breathingRoom = isMobile
-                    ? Math.max(8, Math.min(16, Math.round(stripWidth * 0.032)))
-                    : 0;
+                const breathingRoom = getTodayBreathingRoom(stripWidth);
 
                 // Sincroniza o ponto de snap do CSS com o offset desejado.
                 // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
-                if (isMobile) ui.calendarStrip.style.scrollPaddingInlineEnd = `${breathingRoom}px`;
+                if (breathingRoom > 0) ui.calendarStrip.style.scrollPaddingInlineEnd = `${breathingRoom}px`;
 
                 const prevSibling = selectedEl.previousElementSibling as HTMLElement | null;
                 const gap = prevSibling
