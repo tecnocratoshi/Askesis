@@ -291,18 +291,23 @@ export function scrollToSelectedDate(smooth = true) {
             let targetScroll;
 
             if (isToday) {
-                // ALIGN END (Right): hoje como último item visível, centrado sem resíduo
-                // Calcula o resíduo que causa a "fatia" visível de uma data extra
+                // ALIGN END (Right): hoje como último item visível, com respiro configurável
+                const isMobile = stripWidth < 500;
+                const breathingRoom = isMobile ? 10 : 0;
+
+                // Sincroniza o ponto de snap do CSS com o offset desejado.
+                // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
+                ui.calendarStrip.style.scrollPaddingInlineEnd = isMobile ? '10px' : '';
+
                 const prevSibling = selectedEl.previousElementSibling as HTMLElement | null;
                 const gap = prevSibling
                     ? elLeft - (prevSibling.offsetLeft + prevSibling.offsetWidth)
                     : 0;
                 const step = elWidth + gap;
-                const remainder = step > 0 ? (stripWidth + gap) % step : 0;
-                // Desloca meio resíduo para a direita — distribui o espaço sobrante igualmente nas bordas
-                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2);
-                // Em mobile, recua 10px para aumentar o respiro entre a data atual e os ícones da header
-                if (stripWidth < 500) targetScroll -= 120;
+                // Calcula o resíduo na área visível efetiva (descontando o respiro)
+                const visibleArea = stripWidth - breathingRoom;
+                const remainder = step > 0 ? (visibleArea + gap) % step : 0;
+                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + breathingRoom;
             } else {
                 // ALIGN CENTER: Contexto balanceado
                 targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
