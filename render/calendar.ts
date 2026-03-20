@@ -287,7 +287,15 @@ function getCalendarOpticalAxisOffset(stripWidth: number): number {
     const fabCenterX = fabRect.left + (fabRect.width / 2);
     const iconCenterX = iconRect.left + (iconRect.width / 2);
     const opticalAxisX = (fabCenterX + iconCenterX) / 2;
-    const axisOffset = opticalAxisX - stripRect.left;
+    const rawAxisOffset = opticalAxisX - stripRect.left;
+    const geometricCenter = stripWidth / 2;
+
+    // Calibração fina por largura:
+    // - telas menores tendem a precisar alguns px a menos para a direita
+    // - telas maiores tendem a precisar alguns px a mais para a direita
+    // Além disso, suavizamos o eixo óptico bruto para evitar overcorrection.
+    const widthBias = Math.max(-3, Math.min(3, Math.round((stripWidth - 375) / 20)));
+    const axisOffset = geometricCenter + ((rawAxisOffset - geometricCenter) * 0.85) + widthBias;
 
     return Math.max(0, Math.min(stripWidth, axisOffset));
 }
