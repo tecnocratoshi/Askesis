@@ -8,6 +8,10 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+
+    /* PWA EDGE-TO-EDGE: Empurra o conteúdo para cima da barra de navegação do sistema (Android/iOS).
+       Sem isso, o app termina no limite do viewport e a barra de navegação sobrepõe com cor cinza do OS. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 main {

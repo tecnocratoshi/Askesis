@@ -5,8 +5,9 @@
     flex-direction: column;
     gap: var(--space-sm);
     
-    /* FIX [2025-06-10]: Add Safe Area support for iOS PWA (Notch/Status Bar overlap) */
-    padding-block-start: calc(var(--space-section) + env(safe-area-inset-top));
+    /* PWA EDGE-TO-EDGE: Cobre a área da barra de status (notch/ilha dinâmica) com o fundo do header.
+       O padding empurra o conteúdo para baixo; o próprio background do header preenche atrás. */
+    padding-block-start: calc(var(--space-section) + env(safe-area-inset-top, 0px));
     
     /* PADDING UPDATE [2025-06-15]: Aumentado de space-md para space-xl para maior respiro entre citação e hábitos */
     padding-block-end: var(--space-xl);
