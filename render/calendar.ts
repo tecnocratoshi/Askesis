@@ -287,7 +287,8 @@ export function scrollToSelectedDate(smooth = true) {
             const stripWidth = ui.calendarStrip.clientWidth;
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
-            const isNarrowViewport = stripWidth <= 375;
+            const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+            const isNarrowViewport = viewportWidth <= 375;
             
             let targetScroll;
 
