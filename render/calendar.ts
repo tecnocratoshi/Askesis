@@ -297,7 +297,10 @@ export function scrollToSelectedDate(smooth = true) {
             // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
             // com o início do clipping à direita da viewport do calendário,
             // com um deslocamento óptico fixo de 2px para a esquerda.
-            targetScroll = elLeft + elWidth - stripWidth + 2;
+            // Como o strip usa scroll-snap obrigatório, esse ajuste precisa acontecer
+            // no snapport para não ser absorvido pelo snap final.
+            ui.calendarStrip.style.scrollPaddingInlineEnd = '2px';
+            targetScroll = elLeft + elWidth - stripWidth;
             
             ui.calendarStrip.scrollTo({
                 left: targetScroll,
