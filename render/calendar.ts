@@ -304,4 +304,5 @@ export function scrollToSelectedDate(smooth = true) {
                 behavior: smooth ? 'smooth' : 'auto'
             });
         }
- 
+    });
+}
