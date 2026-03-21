@@ -31,7 +31,7 @@
     scroll-snap-align: center;
 }
 
-.day-item.selected.today {
+.day-item.selected {
     scroll-snap-align: end;
 }
 
