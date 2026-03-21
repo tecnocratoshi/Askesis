@@ -46,8 +46,8 @@
 }
 
 @media (min-width: 390px) and (max-width: 480px) {
-    .calendar-strip {
-        transform: translateX(5px);
+    #fab-add-habit {
+        margin-right: 5px;
     }
 }
 
