@@ -288,7 +288,7 @@ export function scrollToSelectedDate(smooth = true) {
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
             const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-            const isNarrowViewport = viewportWidth <= 375;
+            const isNarrowViewport = viewportWidth <= 384;
             
             let targetScroll;
 
