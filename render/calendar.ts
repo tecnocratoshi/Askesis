@@ -295,13 +295,13 @@ export function scrollToSelectedDate(smooth = true) {
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
             // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
-            // com o início do clipping à direita da viewport do calendário.
-            targetScroll = elLeft + elWidth - stripWidth;
+            // com o início do clipping à direita da viewport do calendário,
+            // com um deslocamento óptico fixo de 2px para a esquerda.
+            targetScroll = elLeft + elWidth - stripWidth + 2;
             
             ui.calendarStrip.scrollTo({
                 left: targetScroll,
                 behavior: smooth ? 'smooth' : 'auto'
             });
         }
-    });
-}
+ 
