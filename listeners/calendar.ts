@@ -12,7 +12,7 @@ import { ui } from '../render/ui';
 import { state } from '../state';
 import { renderApp, renderFullCalendar, openModal, closeModal, viewTransitionRender } from '../render';
 import { appendDayToStrip, prependDayToStrip, scrollToSelectedDate } from '../render/calendar';
-import { parseUTCIsoDate, triggerHaptic, getTodayUTCIso, getNormalizedKeyboardKey, isActivationKeyboardEvent } from '../utils';
+import { parseUTCIsoDate, triggerHaptic, getTodayUTCIso } from '../utils';
 import { CSS_CLASSES, DOM_SELECTORS } from '../render/constants';
 import {
     CALENDAR_SCROLL_THRESHOLD_PX,
@@ -182,6 +182,10 @@ const _handleStripClick = (e: MouseEvent) => {
             state.uiDirtyState.habitListStructure = true;
             state.uiDirtyState.chartData = true;
             viewTransitionRender(flipDir);
+
+            requestAnimationFrame(() => {
+                scrollToSelectedDate(true);
+            });
         }
     }
 };
@@ -190,19 +194,17 @@ const _handleStripKeydown = (e: KeyboardEvent) => {
     const item = (e.target as HTMLElement).closest<HTMLElement>(DOM_SELECTORS.DAY_ITEM);
     if (!item || !item.dataset.date) return;
 
-    const key = getNormalizedKeyboardKey(e);
-
-    if (isActivationKeyboardEvent(e)) {
+    if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         item.click();
         return;
     }
 
-    if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
 
     e.preventDefault();
 
-    const sibling = (key === 'ArrowRight'
+    const sibling = (e.key === 'ArrowRight'
         ? item.nextElementSibling
         : item.previousElementSibling) as HTMLElement | null;
 

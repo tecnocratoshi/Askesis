@@ -305,6 +305,7 @@ export function scrollToSelectedDate(smooth = true) {
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
             const isToday = selectedEl.classList.contains(CSS_CLASSES.TODAY);
+            const isNarrowTodayViewport = stripWidth <= 375;
             const opticalAxisOffset = getOpticalAxisOffset(stripWidth);
             
             let targetScroll;
@@ -314,13 +315,13 @@ export function scrollToSelectedDate(smooth = true) {
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
             if (isToday) {
-                const todayRightInset = stripWidth < 390 ? 10 : 0;
+                // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
+                // exatamente com o início do clipping à direita da viewport do calendário.
+                if (isNarrowTodayViewport) {
+                    ui.calendarStrip.style.scrollPaddingInlineEnd = '12px';
+                }
 
-                // ALIGN EDGE-TO-CLIP: em telas menores, usamos a mesma referência
-                // da borda direita do highlight no clipping à direita e deslocamos
-                // 10px para a esquerda de forma compatível com o snap obrigatório.
-                ui.calendarStrip.style.scrollPaddingInlineEnd = `${todayRightInset}px`;
-                targetScroll = elLeft + elWidth - stripWidth + todayRightInset;
+                targetScroll = elLeft + elWidth - stripWidth + (isNarrowTodayViewport ? 12 : 0);
             } else {
                 // ALIGN CENTER: em telas maiores que mobile, usa centro óptico do header.
                 const axisOffset = stripWidth > 480

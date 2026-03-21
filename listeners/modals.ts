@@ -21,9 +21,13 @@ import { ui } from '../render/ui';
 import { 
     state, 
     LANGUAGES, 
+    invalidateChartCache, 
+    FREQUENCIES,
+    TimeOfDay,
     MAX_HABIT_NAME_LENGTH
 } from '../state';
 import { PREDEFINED_HABITS } from '../data/predefinedHabits';
+import { sanitizeHabitIcon } from '../data/icons';
 import {
     openModal,
     closeModal,
@@ -31,8 +35,16 @@ import {
     renderExploreHabits,
     showConfirmationModal,
     renderLanguageFilter,
+    renderAINotificationState,
     openEditModal,
     updateNotificationUI,
+    renderFrequencyOptions,
+    renderIconPicker,
+    renderColorPicker,
+    renderFullCalendar,
+    renderApp,
+    scrollToSelectedDate,
+    viewTransitionRender,
 } from '../render';
 import {
     saveHabitFromModal,
@@ -41,33 +53,85 @@ import {
     resetApplicationData,
     handleSaveNote,
     graduateHabit,
+    performAIAnalysis,
     exportData,
     importData,
+    consumeAndFormatCelebrations,
 } from '../services/habitActions';
 import { t, setLanguage } from '../i18n';
 import { setupReelRotary } from '../render/rotary';
-import { ensureOneSignalReady, setLocalPushOptIn, triggerHaptic, logger, getTodayUTCIso, isActivationKeyboardEvent } from '../utils';
+import { simpleMarkdownToHTML, ensureOneSignalReady, setLocalPushOptIn, getContrastColor, addDays, parseUTCIsoDate, toUTCIsoDateString, triggerHaptic, logger, escapeHTML, sanitizeText, getTodayUTCIso } from '../utils';
 import { setTextContent } from '../render/dom';
-import {
-    handleAiEvalClick,
-    handleAiOptionsClick,
-} from './modals/aiHandlers';
-import {
-    handleFullCalendarPrevClick,
-    handleFullCalendarNextClick,
-    handleFullCalendarGridClick,
-    handleFullCalendarGridKeydown,
-} from './modals/fullCalendarHandlers';
-import {
-    handleHabitNameInput,
-    handleIconPickerClick,
-    handleIconGridClick,
-    handleColorGridClick,
-    handleChangeColorClick,
-    handleTimeContainerClick,
-    handleFrequencyChange,
-    handleFrequencyClick,
-} from './modals/formHandlers';
+
+// --- STATIC HELPERS ---
+
+function _navigateToDateFromAlmanac(dateISO: string) {
+    const flipDir = dateISO < state.selectedDate ? 'forward' : 'back';
+    state.selectedDate = dateISO;
+    
+    closeModal(ui.fullCalendarModal);
+    
+    state.uiDirtyState.calendarVisuals = true;
+    state.uiDirtyState.habitListStructure = true;
+    invalidateChartCache();
+    
+    viewTransitionRender(flipDir);
+
+    requestAnimationFrame(() => {
+        scrollToSelectedDate(false);
+    });
+}
+
+// --- VALIDATION LOGIC (Decoupled) ---
+
+/**
+ * Valida o nome do hábito e atualiza a UI.
+ * PERFORMANCE: Evita Layout Thrashing (offsetWidth) no loop de input.
+ * Apenas atualiza o texto de erro se o *tipo* de erro mudar.
+ */
+function _validateAndFeedback(newName: string): boolean {
+    const formNoticeEl = ui.editHabitForm.querySelector<HTMLElement>('.form-notice')!;
+    const habitNameInput = ui.editHabitForm.elements.namedItem('habit-name') as HTMLInputElement;
+    
+    const trimmedName = newName.trim();
+    let errorKey: string | null = null;
+    const isBlockingError = trimmedName.length === 0;
+
+    if (isBlockingError) {
+        errorKey = 'noticeNameCannotBeEmpty';
+    } else if (trimmedName.length > MAX_HABIT_NAME_LENGTH) {
+        errorKey = 'noticeNameTooLong'; // Apenas um aviso não-bloqueante
+    }
+
+    const isValid = !isBlockingError;
+
+    // UI Updates (DOM Writes)
+    if (!errorKey) {
+        if (formNoticeEl.classList.contains('visible')) {
+            formNoticeEl.classList.remove('visible');
+            habitNameInput.classList.remove('shake');
+        }
+    } else {
+        const errorText = t(errorKey);
+        if (formNoticeEl.textContent !== errorText) {
+            formNoticeEl.textContent = errorText;
+        }
+        
+        if (!formNoticeEl.classList.contains('visible')) {
+            formNoticeEl.classList.add('visible');
+            
+            if (isBlockingError) {
+                requestAnimationFrame(() => {
+                    habitNameInput.classList.add('shake');
+                    habitNameInput.addEventListener('animationend', () => habitNameInput.classList.remove('shake'), { once: true });
+                });
+            }
+        }
+    }
+    
+    ui.editHabitSaveBtn.disabled = isBlockingError;
+    return isValid;
+}
 
 // --- STATIC EVENT HANDLERS ---
 
@@ -133,111 +197,78 @@ const _handleResetAppClick = () => {
     );
 };
 
-// Async helper chamado após obter a permissão (ou já possuí-la).
-const _enableNotificationsAsync = async (perm: string) => {
+const _handleNotificationToggleChange = async () => {
+    const wantsEnabled = ui.notificationToggle.checked;
+
     try {
-        if (perm !== 'granted') {
-            ui.notificationToggle.checked = false;
-            setLocalPushOptIn(false);
-            setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
-            return;
-        }
+        if (wantsEnabled) {
+            // 1) Primeiro, solicita permissão nativa do navegador (sem dependências externas).
+            // Isso permite deixar o toggle "verde" assim que o browser garantir a permissão.
+            const currentPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
+                ? (Notification as any).permission
+                : 'default';
 
-        ui.notificationToggle.disabled = true;
-        setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
+            const perm = (currentPerm === 'default' && typeof Notification !== 'undefined' && (Notification as any).requestPermission)
+                ? await (Notification as any).requestPermission()
+                : currentPerm;
 
-        // Persiste opt-in local imediatamente (boot pode refletir sem SDK).
-        setLocalPushOptIn(true);
-        updateNotificationUI();
+            if (perm !== 'granted') {
+                ui.notificationToggle.checked = false;
+                setLocalPushOptIn(false);
+                setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
+                return;
+            }
 
-        // Carrega OneSignal em background para finalizar subscription.
-        ensureOneSignalReady()
-            .then(async (OneSignal) => {
-                try { await OneSignal.Notifications.requestPermission?.(); } catch {}
-                try {
-                    const optedIn = !!OneSignal.User.PushSubscription.optedIn;
-                    // Chrome/Brave Android, Safari e outros: protege localOptIn de ser sobrescrito
-                    // para false quando a permissão nativa já foi concedida e o OneSignal ainda
-                    // não finalizou a subscription assíncrona.
-                    const nativePerm = (typeof Notification !== 'undefined') ? (Notification as any).permission : 'default';
-                    if (optedIn || nativePerm !== 'granted') {
-                        setLocalPushOptIn(optedIn);
+            ui.notificationToggle.disabled = true;
+            setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
+
+            // 2) Persistimos opt-in local imediatamente (boot pode refletir o estado sem SDK).
+            setLocalPushOptIn(true);
+            updateNotificationUI();
+
+            // 3) Só depois carregamos OneSignal em background para finalizar subscription.
+            ensureOneSignalReady()
+                .then(async (OneSignal) => {
+                    // Garante que o OneSignal complete a inscrição/subscription (sem prompt extra se já granted).
+                    try {
+                        await OneSignal.Notifications.requestPermission?.();
+                    } catch {}
+                    try {
+                        setLocalPushOptIn(!!OneSignal.User.PushSubscription.optedIn);
+                    } catch {}
+                    updateNotificationUI();
+
+                    // Garante recebimento de push em background: SW com ?push=1 carrega OneSignal SW SDK no boot.
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.register('./sw.js?push=1').catch(() => {});
                     }
-                } catch {}
-                updateNotificationUI();
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.register('./sw.js?push=1').catch(() => {});
-                }
-            })
-            .catch(() => { updateNotificationUI(); });
-    } catch {
-        const nativePerm = (typeof Notification !== 'undefined') ? (Notification as any).permission : 'default';
-        if (nativePerm !== 'granted') {
-            ui.notificationToggle.checked = false;
+                })
+                .catch(() => {
+                    // Se falhar, mantemos permissão do browser, mas não garantimos subscription.
+                    updateNotificationUI();
+                });
+        } else {
+            ui.notificationToggle.disabled = true;
+            setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
+            // Desativar: aqui faz sentido carregar OneSignal para de fato opt-out.
+            const OneSignal = await ensureOneSignalReady();
+            await OneSignal.User.PushSubscription.optOut();
             setLocalPushOptIn(false);
+
+            // Volta ao SW padrão (sem push=1) para manter zero-deps quando desabilitado.
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            }
         }
+    } catch (e) {
+        // Se o SDK falhar (bloqueio do browser/domínio), reverte a UI para um estado seguro.
+        ui.notificationToggle.checked = false;
         setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
+        setLocalPushOptIn(false);
     } finally {
         ui.notificationToggle.disabled = false;
         updateNotificationUI();
     }
-};
-
-// iOS Safari PWA CRÍTICO: esta função NÃO pode ser async.
-// O WebKit exige que Notification.requestPermission() seja chamado sincronamente dentro
-// de um handler de gesto do usuário sem nenhum contexto async antes.
-// Usar async/await aqui faz o token de ativação do usuário não ser propagado
-// corretamente, causando o diálogo de permissão não aparecer intermitentemente.
-const _handleNotificationToggleChange = () => {
-    const wantsEnabled = ui.notificationToggle.checked;
-
-    if (!wantsEnabled) {
-        // Desativar: não requer gesto do usuário, pode ser async.
-        (async () => {
-            ui.notificationToggle.disabled = true;
-            setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
-            try {
-                const OneSignal = await ensureOneSignalReady();
-                await OneSignal.User.PushSubscription.optOut();
-                setLocalPushOptIn(false);
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.register('./sw.js').catch(() => {});
-                }
-            } catch {
-                // Se falhar, mantém o estado atual (pode ter perdido conexão).
-                setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
-            } finally {
-                ui.notificationToggle.disabled = false;
-                updateNotificationUI();
-            }
-        })();
-        return;
-    }
-
-    const currentPerm: string =
-        (typeof Notification !== 'undefined' && (Notification as any).permission) || 'default';
-
-    // Chama requestPermission() SINCRONAMENTE dentro do gesto do usuário (sem async antes).
-    // Isso garante compatibilidade com iOS Safari PWA e qualquer browser com restrição de gesto.
-    const permPromise: Promise<string> =
-        (currentPerm === 'default' &&
-            typeof Notification !== 'undefined' &&
-            typeof (Notification as any).requestPermission === 'function')
-            ? ((Notification as any).requestPermission() as Promise<string>)
-            : Promise.resolve(currentPerm);
-
-    permPromise
-        .then(perm => _enableNotificationsAsync(perm))
-        .catch(() => {
-            const nativePerm = (typeof Notification !== 'undefined') ? (Notification as any).permission : 'default';
-            if (nativePerm !== 'granted') {
-                ui.notificationToggle.checked = false;
-                setLocalPushOptIn(false);
-            }
-            setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
-            ui.notificationToggle.disabled = false;
-            updateNotificationUI();
-        });
 };
 
 const _handleExploreHabitListClick = (e: MouseEvent) => {
@@ -256,7 +287,7 @@ const _handleExploreHabitListClick = (e: MouseEvent) => {
 };
 
 const _handleExploreHabitListKeydown = (e: KeyboardEvent) => {
-    if (isActivationKeyboardEvent(e)) {
+    if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const item = (e.target as HTMLElement).closest<HTMLElement>('.explore-habit-item');
         if (item) {
@@ -270,6 +301,82 @@ const _handleCreateCustomHabitClick = () => {
     closeModal(ui.exploreModal);
     // CALLBACK: Se cancelar (back/close), reabre o modal de Explorar.
     openEditModal(null, undefined, () => openModal(ui.exploreModal));
+};
+
+const _handleAiEvalClick = async () => {
+    // UNIFIED STATE CHECK: Confia em state.aiState e na visibilidade do modal.
+    if (state.aiState === 'loading' || ui.aiModal.classList.contains('visible') || ui.aiOptionsModal.classList.contains('visible')) {
+        return;
+    }
+    
+    triggerHaptic('light');
+
+    if (!navigator.onLine) {
+        try {
+            const { STOIC_QUOTES } = await import('../data/quotes');
+            const offlineQuotes = STOIC_QUOTES.filter(q => 
+                q.metadata.tags.includes('control') || 
+                q.metadata.tags.includes('acceptance') ||
+                q.metadata.tags.includes('perception')
+            );
+            const sourceArray = offlineQuotes.length > 0 ? offlineQuotes : STOIC_QUOTES;
+            const randomQuote = sourceArray[Math.floor(Math.random() * sourceArray.length)];
+            const lang = state.activeLanguageCode as 'pt'|'en'|'es';
+            const quoteText = escapeHTML(randomQuote.original_text[lang]);
+            const author = escapeHTML(t(randomQuote.author));
+
+            const message = `
+                <div class="offline-header">
+                    <h3 class="offline-title">${escapeHTML(t('aiOfflineTitle'))}</h3>
+                    <p class="offline-desc">${escapeHTML(t('aiOfflineMessage'))}</p>
+                </div>
+                <div class="offline-quote-box">
+                    <blockquote class="offline-quote-text">
+                        "${quoteText}"
+                    </blockquote>
+                    <div class="offline-quote-author">
+                        — ${author}
+                    </div>
+                </div>
+            `;
+            const fragment = document.createRange().createContextualFragment(message);
+            ui.aiResponse.replaceChildren(fragment);
+            openModal(ui.aiModal);
+        } catch (e) {
+            logger.error("Failed to load offline quote", e);
+        }
+        return;
+    }
+
+    let message = '';
+    
+    const allCelebrations = consumeAndFormatCelebrations();
+
+    if (allCelebrations) {
+        message = simpleMarkdownToHTML(allCelebrations);
+        renderAINotificationState();
+    } else if ((state.aiState === 'completed' || state.aiState === 'error') && !state.hasSeenAIResult && state.lastAIResult) {
+        message = simpleMarkdownToHTML(state.lastAIResult);
+    }
+    
+    if (message) {
+        const fragment = document.createRange().createContextualFragment(message);
+        ui.aiResponse.replaceChildren(fragment);
+        openModal(ui.aiModal, undefined, () => {
+            state.hasSeenAIResult = true;
+            renderAINotificationState();
+        });
+    } else {
+        openModal(ui.aiOptionsModal);
+    }
+};
+
+const _handleAiOptionsClick = (e: MouseEvent) => {
+    const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.ai-option-btn');
+    if (!button) return;
+    triggerHaptic('light');
+    const analysisType = button.dataset.analysisType as 'monthly' | 'quarterly' | 'historical';
+    performAIAnalysis(analysisType);
 };
 
 const _handleConfirmClick = () => {
@@ -305,6 +412,231 @@ const _handleEditClick = () => {
     closeModal(ui.confirmModal);
 };
 
+const _handleFullCalendarPrevClick = () => {
+    if (!state.fullCalendar) return;
+    let { month, year } = state.fullCalendar;
+    month--;
+    if (month < 0) { month = 11; year--; }
+    state.fullCalendar = { month, year };
+    renderFullCalendar();
+    triggerHaptic('light');
+};
+
+const _handleFullCalendarNextClick = () => {
+    if (!state.fullCalendar) return;
+    let { month, year } = state.fullCalendar;
+    month++;
+    if (month > 11) { month = 0; year++; }
+    state.fullCalendar = { month, year };
+    renderFullCalendar();
+    triggerHaptic('light');
+};
+
+const _handleFullCalendarGridClick = (e: MouseEvent) => {
+    const dayEl = (e.target as HTMLElement).closest<HTMLElement>('.full-calendar-day');
+    if (dayEl && dayEl.dataset.date && !dayEl.classList.contains('other-month')) {
+        triggerHaptic('selection');
+        _navigateToDateFromAlmanac(dayEl.dataset.date);
+    }
+};
+
+const _handleFullCalendarGridKeydown = (e: KeyboardEvent) => {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) {
+        return;
+    }
+    e.preventDefault();
+
+    if (e.key === 'Enter' || e.key === ' ') {
+        _navigateToDateFromAlmanac(state.selectedDate);
+        return;
+    }
+
+    const currentSelectedDate = parseUTCIsoDate(state.selectedDate);
+    let newDate: Date;
+
+    switch (e.key) {
+        case 'ArrowRight': newDate = addDays(currentSelectedDate, 1); break;
+        case 'ArrowLeft': newDate = addDays(currentSelectedDate, -1); break;
+        case 'ArrowUp': newDate = addDays(currentSelectedDate, -7); break;
+        case 'ArrowDown': newDate = addDays(currentSelectedDate, 7); break;
+        default: return;
+    }
+
+    state.selectedDate = toUTCIsoDateString(newDate);
+
+    if (newDate.getUTCMonth() !== state.fullCalendar.month || newDate.getUTCFullYear() !== state.fullCalendar.year) {
+        state.fullCalendar.month = newDate.getUTCMonth();
+        state.fullCalendar.year = newDate.getUTCFullYear();
+    }
+    
+    renderFullCalendar();
+    
+    requestAnimationFrame(() => {
+        const newSelectedEl = ui.fullCalendarGrid.querySelector<HTMLElement>(`.full-calendar-day[data-date="${state.selectedDate}"]`);
+        newSelectedEl?.focus();
+    });
+};
+
+const _handleHabitNameInput = () => {
+    if (!state.editingHabit) return;
+    
+    const habitNameInput = ui.editHabitForm.elements.namedItem('habit-name') as HTMLInputElement;
+    const rawName = habitNameInput.value;
+    const newName = sanitizeText(rawName, MAX_HABIT_NAME_LENGTH);
+    if (newName !== rawName) habitNameInput.value = newName;
+
+    if (state.editingHabit.formData.nameKey) {
+        delete state.editingHabit.formData.nameKey;
+        state.editingHabit.formData.subtitleKey = 'customHabitSubtitle';
+        if (ui.habitSubtitleDisplay) {
+            setTextContent(ui.habitSubtitleDisplay, t('customHabitSubtitle'));
+        }
+    }
+
+    state.editingHabit.formData.name = newName;
+    
+    _validateAndFeedback(newName);
+};
+
+const _handleIconPickerClick = () => {
+    renderIconPicker();
+    openModal(ui.iconPickerModal);
+};
+
+function _applySafeIconToEditForm(rawIcon: string) {
+    if (!state.editingHabit) return;
+    const safeIcon = sanitizeHabitIcon(rawIcon, '❓');
+    state.editingHabit.formData.icon = safeIcon;
+    ui.habitIconPickerBtn.innerHTML = safeIcon;
+}
+
+const _handleIconGridClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const item = target.closest<HTMLButtonElement>('.icon-picker-item');
+    if (item && state.editingHabit) {
+        triggerHaptic('light');
+        _applySafeIconToEditForm(item.dataset.iconSvg!);
+        closeModal(ui.iconPickerModal);
+    }
+};
+
+const _handleColorGridClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const swatch = target.closest<HTMLButtonElement>('.color-swatch');
+    if (swatch && state.editingHabit) {
+        triggerHaptic('light');
+        const color = swatch.dataset.color!;
+        
+        state.editingHabit.formData.color = color;
+
+        const iconColor = getContrastColor(color);
+        ui.habitIconPickerBtn.style.backgroundColor = color;
+        ui.habitIconPickerBtn.style.color = iconColor;
+        
+        ui.colorPickerGrid.querySelector('.selected')?.classList.remove('selected');
+        swatch.classList.add('selected');
+
+        ui.iconPickerGrid.style.setProperty('--current-habit-bg-color', color);
+        ui.iconPickerGrid.style.setProperty('--current-habit-fg-color', iconColor);
+
+        ui.iconPickerModal.classList.remove('is-picking-color');
+        
+        closeModal(ui.colorPickerModal, true);
+    }
+};
+
+const _handleChangeColorClick = () => {
+    renderColorPicker();
+    ui.iconPickerModal.classList.add('is-picking-color');
+    openModal(ui.colorPickerModal, undefined, () => {
+        ui.iconPickerModal.classList.remove('is-picking-color');
+        renderIconPicker();
+    });
+};
+
+const _handleTimeContainerClick = (e: MouseEvent) => {
+    if (!state.editingHabit) return;
+    const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.segmented-control-option');
+    if (!button) return;
+
+    triggerHaptic('light');
+    const time = button.dataset.time as TimeOfDay; 
+    const currentlySelected = state.editingHabit.formData.times.includes(time);
+    const isAttitudinal = state.editingHabit.formData.mode === 'attitudinal';
+
+    if (isAttitudinal) {
+        if (currentlySelected) return;
+        state.editingHabit.formData.times = [time];
+        const options = ui.habitTimeContainer.querySelectorAll<HTMLButtonElement>('.segmented-control-option');
+        options.forEach(option => {
+            option.classList.toggle('selected', option.dataset.time === time);
+        });
+        return;
+    }
+
+    if (currentlySelected) {
+        state.editingHabit.formData.times = state.editingHabit.formData.times.filter(t => t !== time);
+        button.classList.remove('selected');
+    } else {
+        state.editingHabit.formData.times.push(time);
+        button.classList.add('selected');
+    }
+};
+
+const _handleFrequencyChange = (e: Event) => {
+    const target = e.target as HTMLElement;
+    if (!state.editingHabit) return;
+    if (state.editingHabit.formData.mode === 'attitudinal') {
+        state.editingHabit.formData.frequency = { type: 'daily' };
+        return;
+    }
+
+    if (target.matches('input[name="frequency-type"]')) {
+        const radio = target as HTMLInputElement;
+        const type = radio.value as 'daily' | 'interval' | 'specific_days_of_week';
+        
+        switch (type) {
+            case 'daily':
+                state.editingHabit.formData.frequency = { type: 'daily' };
+                break;
+            case 'specific_days_of_week':
+                const currentFreq = state.editingHabit.formData.frequency;
+                const days = currentFreq.type === 'specific_days_of_week' ? currentFreq.days : [];
+                state.editingHabit.formData.frequency = { type: 'specific_days_of_week', days };
+                break;
+            case 'interval':
+                const intervalFreqTpl = FREQUENCIES.find(f => f.value.type === 'interval')!.value as { type: 'interval', unit: 'days' | 'weeks', amount: number };
+                const currentIntervalFreq = state.editingHabit.formData.frequency;
+                const amount = (currentIntervalFreq.type === 'interval' ? currentIntervalFreq.amount : intervalFreqTpl.amount);
+                const unit = (currentIntervalFreq.type === 'interval' ? currentIntervalFreq.unit : intervalFreqTpl.unit);
+                state.editingHabit.formData.frequency = { type: 'interval', amount, unit };
+                break;
+        }
+        renderFrequencyOptions();
+    } else if (target.closest('.weekday-picker input')) {
+        const days = Array.from(ui.frequencyOptionsContainer.querySelectorAll<HTMLInputElement>('.weekday-picker input:checked'))
+            .map(el => parseInt(el.dataset.day!, 10));
+        state.editingHabit.formData.frequency = { type: 'specific_days_of_week', days };
+    }
+};
+
+const _handleFrequencyClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const btn = target.closest<HTMLButtonElement>('.stepper-btn, .unit-toggle-btn');
+    if (!btn || !state.editingHabit || state.editingHabit.formData.mode === 'attitudinal' || state.editingHabit.formData.frequency.type !== 'interval') return;
+
+    const action = btn.dataset.action;
+    const currentFreq = state.editingHabit.formData.frequency;
+    let { amount, unit } = currentFreq;
+
+    if (action === 'interval-decrement') amount = Math.max(1, amount - 1);
+    if (action === 'interval-increment') amount = Math.min(99, amount + 1);
+    if (action === 'interval-unit-toggle') unit = unit === 'days' ? 'weeks' : 'days';
+
+    state.editingHabit.formData.frequency = { type: 'interval', amount, unit };
+    renderFrequencyOptions();
+};
+
 export function setupModalListeners() {
     // Main Actions
     ui.manageHabitsBtn.addEventListener('click', _handleManageHabitsClick);
@@ -337,8 +669,8 @@ export function setupModalListeners() {
     ui.createCustomHabitBtn.addEventListener('click', _handleCreateCustomHabitClick);
 
     // AI
-    ui.aiEvalBtn.addEventListener('click', handleAiEvalClick);
-    ui.aiOptionsModal.addEventListener('click', handleAiOptionsClick);
+    ui.aiEvalBtn.addEventListener('click', _handleAiEvalClick);
+    ui.aiOptionsModal.addEventListener('click', _handleAiOptionsClick);
 
     // Dialogs
     ui.confirmModalConfirmBtn.addEventListener('click', _handleConfirmClick);
@@ -346,10 +678,10 @@ export function setupModalListeners() {
     ui.saveNoteBtn.addEventListener('click', () => { triggerHaptic('light'); handleSaveNote(); });
 
     // Full Calendar
-    ui.fullCalendarPrevBtn.addEventListener('click', handleFullCalendarPrevClick);
-    ui.fullCalendarNextBtn.addEventListener('click', handleFullCalendarNextClick);
-    ui.fullCalendarGrid.addEventListener('click', handleFullCalendarGridClick);
-    ui.fullCalendarGrid.addEventListener('keydown', handleFullCalendarGridKeydown);
+    ui.fullCalendarPrevBtn.addEventListener('click', _handleFullCalendarPrevClick);
+    ui.fullCalendarNextBtn.addEventListener('click', _handleFullCalendarNextClick);
+    ui.fullCalendarGrid.addEventListener('click', _handleFullCalendarGridClick);
+    ui.fullCalendarGrid.addEventListener('keydown', _handleFullCalendarGridKeydown);
 
     // Habit Editing Form
     ui.editHabitSaveBtn.addEventListener('click', () => { triggerHaptic('light'); saveHabitFromModal(); });
@@ -358,16 +690,16 @@ export function setupModalListeners() {
     const habitNameInput = ui.editHabitForm.elements.namedItem('habit-name') as HTMLInputElement;
     // BROWSER LEVEL GUARD: Define maxLength no DOM para prevenir colagem excessiva
     habitNameInput.maxLength = MAX_HABIT_NAME_LENGTH;
-    habitNameInput.addEventListener('input', handleHabitNameInput);
+    habitNameInput.addEventListener('input', _handleHabitNameInput);
 
     // Pickers
-    ui.habitIconPickerBtn.addEventListener('click', handleIconPickerClick);
-    ui.iconPickerGrid.addEventListener('click', handleIconGridClick);
-    ui.colorPickerGrid.addEventListener('click', handleColorGridClick);
-    ui.changeColorFromPickerBtn.addEventListener('click', handleChangeColorClick);
-    ui.habitTimeContainer.addEventListener('click', handleTimeContainerClick);
+    ui.habitIconPickerBtn.addEventListener('click', _handleIconPickerClick);
+    ui.iconPickerGrid.addEventListener('click', _handleIconGridClick);
+    ui.colorPickerGrid.addEventListener('click', _handleColorGridClick);
+    ui.changeColorFromPickerBtn.addEventListener('click', _handleChangeColorClick);
+    ui.habitTimeContainer.addEventListener('click', _handleTimeContainerClick);
     
     // Frequency Controls
-    ui.frequencyOptionsContainer.addEventListener('change', handleFrequencyChange);
-    ui.frequencyOptionsContainer.addEventListener('click', handleFrequencyClick);
+    ui.frequencyOptionsContainer.addEventListener('change', _handleFrequencyChange);
+    ui.frequencyOptionsContainer.addEventListener('click', _handleFrequencyClick);
 }
