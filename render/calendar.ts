@@ -318,7 +318,11 @@ export function scrollToSelectedDate(smooth = true) {
                 targetScroll = elLeft + elWidth - stripWidth;
             } else {
                 // ALIGN CENTER: em telas maiores que mobile, usa centro óptico do header.
-                const axisOffset = stripWidth > 480 ? opticalAxisOffset : (stripWidth / 2);
+                const axisOffset = stripWidth > 480
+                    ? opticalAxisOffset
+                    : stripWidth < 390
+                        ? (stripWidth / 2) - 5
+                        : (stripWidth / 2);
                 targetScroll = elLeft - axisOffset + (elWidth / 2);
             }
             
