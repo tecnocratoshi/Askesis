@@ -309,7 +309,8 @@ export function scrollToSelectedDate(smooth = true) {
             
             let targetScroll;
 
-            // Evita estado residual de snap quando alternamos entre "hoje" e outras datas.
+            // Evita estado residual de snap/padding quando alternamos entre contextos.
+            ui.calendarStrip.style.scrollPaddingInlineStart = '';
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
             if (isToday) {
@@ -323,6 +324,18 @@ export function scrollToSelectedDate(smooth = true) {
                     : stripWidth < 390
                         ? (stripWidth / 2) - 5
                         : (stripWidth / 2);
+
+                // Move o centro efetivo do snapport via scroll-padding assimétrico,
+                // para que o snap preserve o alinhamento desejado depois do scroll programático.
+                const centerDelta = axisOffset - (stripWidth / 2);
+                if (centerDelta > 0) {
+                    ui.calendarStrip.style.scrollPaddingInlineStart = `${Math.round(centerDelta * 2)}px`;
+                    ui.calendarStrip.style.scrollPaddingInlineEnd = '0px';
+                } else if (centerDelta < 0) {
+                    ui.calendarStrip.style.scrollPaddingInlineStart = '0px';
+                    ui.calendarStrip.style.scrollPaddingInlineEnd = `${Math.round(Math.abs(centerDelta) * 2)}px`;
+                }
+
                 targetScroll = elLeft - axisOffset + (elWidth / 2);
             }
             

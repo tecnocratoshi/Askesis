@@ -28,6 +28,10 @@
     transition: background-color var(--transition-duration), transform 0.1s ease-out;
     border: 2px solid transparent;
     flex-shrink: 0;
+    scroll-snap-align: center;
+}
+
+.day-item.selected.today {
     scroll-snap-align: end;
 }
 
