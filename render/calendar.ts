@@ -272,27 +272,10 @@ export function renderFullCalendar() {
     ui.fullCalendarGrid.appendChild(frag);
 }
 
-function getOpticalAxisOffset(stripWidth: number): number {
-    if (!ui.calendarStrip) return stripWidth / 2;
-
-    const fab = ui.fabAddHabit as HTMLElement | null;
-    const iconStack = ui.manageHabitsBtn?.parentElement as HTMLElement | null;
-    if (!fab || !iconStack) return stripWidth / 2;
-
-    const stripRect = ui.calendarStrip.getBoundingClientRect();
-    const fabRect = fab.getBoundingClientRect();
-    const iconRect = iconStack.getBoundingClientRect();
-    const fabCenterX = fabRect.left + (fabRect.width / 2);
-    const iconCenterX = iconRect.left + (iconRect.width / 2);
-    const opticalAxisX = (fabCenterX + iconCenterX) / 2;
-    const axisOffset = opticalAxisX - stripRect.left;
-
-    return Math.max(0, Math.min(stripWidth, axisOffset));
-}
-
 /**
  * Rola a fita para posicionar o elemento selecionado.
- * LÓGICA CONTEXTUAL: "Hoje" alinha à direita (histórico), outros centralizam.
+ * PADRÃO DE REFERÊNCIA: o item selecionado usa sempre a mesma referência visual
+ * da posição inicial, inclusive após navegar para outros dias.
  */
 export function scrollToSelectedDate(smooth = true) {
     if (!ui.calendarStrip) return;
@@ -304,45 +287,21 @@ export function scrollToSelectedDate(smooth = true) {
             const stripWidth = ui.calendarStrip.clientWidth;
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
-            const isToday = selectedEl.classList.contains(CSS_CLASSES.TODAY);
-            const isNarrowTodayViewport = stripWidth <= 375;
-            const opticalAxisOffset = getOpticalAxisOffset(stripWidth);
+            const isNarrowViewport = stripWidth <= 375;
             
             let targetScroll;
 
-            // Evita estado residual de snap/padding quando alternamos entre contextos.
+            // Evita estado residual de snap/padding quando alternamos entre seleções.
             ui.calendarStrip.style.scrollPaddingInlineStart = '';
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
-            if (isToday) {
-                // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
-                // exatamente com o início do clipping à direita da viewport do calendário.
-                if (isNarrowTodayViewport) {
-                    ui.calendarStrip.style.scrollPaddingInlineEnd = '12px';
-                }
-
-                targetScroll = elLeft + elWidth - stripWidth + (isNarrowTodayViewport ? 12 : 0);
-            } else {
-                // ALIGN CENTER: em telas maiores que mobile, usa centro óptico do header.
-                const axisOffset = stripWidth > 480
-                    ? opticalAxisOffset
-                    : stripWidth < 390
-                        ? (stripWidth / 2) - 5
-                        : (stripWidth / 2);
-
-                // Move o centro efetivo do snapport via scroll-padding assimétrico,
-                // para que o snap preserve o alinhamento desejado depois do scroll programático.
-                const centerDelta = axisOffset - (stripWidth / 2);
-                if (centerDelta > 0) {
-                    ui.calendarStrip.style.scrollPaddingInlineStart = `${Math.round(centerDelta * 2)}px`;
-                    ui.calendarStrip.style.scrollPaddingInlineEnd = '0px';
-                } else if (centerDelta < 0) {
-                    ui.calendarStrip.style.scrollPaddingInlineStart = '0px';
-                    ui.calendarStrip.style.scrollPaddingInlineEnd = `${Math.round(Math.abs(centerDelta) * 2)}px`;
-                }
-
-                targetScroll = elLeft - axisOffset + (elWidth / 2);
+            // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
+            // com o início do clipping à direita da viewport do calendário.
+            if (isNarrowViewport) {
+                ui.calendarStrip.style.scrollPaddingInlineEnd = '12px';
             }
+
+            targetScroll = elLeft + elWidth - stripWidth + (isNarrowViewport ? 12 : 0);
             
             ui.calendarStrip.scrollTo({
                 left: targetScroll,

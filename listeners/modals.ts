@@ -42,8 +42,6 @@ import {
     renderIconPicker,
     renderColorPicker,
     renderFullCalendar,
-    renderApp,
-    scrollToSelectedDate,
     viewTransitionRender,
 } from '../render';
 import {
@@ -76,10 +74,6 @@ function _navigateToDateFromAlmanac(dateISO: string) {
     invalidateChartCache();
     
     viewTransitionRender(flipDir);
-
-    requestAnimationFrame(() => {
-        scrollToSelectedDate(false);
-    });
 }
 
 // --- VALIDATION LOGIC (Decoupled) ---
