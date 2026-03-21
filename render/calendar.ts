@@ -314,9 +314,13 @@ export function scrollToSelectedDate(smooth = true) {
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
             if (isToday) {
-                // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
-                // exatamente com o início do clipping à direita da viewport do calendário.
-                targetScroll = elLeft + elWidth - stripWidth;
+                const todayRightInset = stripWidth < 390 ? 10 : 0;
+
+                // ALIGN EDGE-TO-CLIP: em telas menores, usamos a mesma referência
+                // da borda direita do highlight no clipping à direita e deslocamos
+                // 10px para a esquerda de forma compatível com o snap obrigatório.
+                ui.calendarStrip.style.scrollPaddingInlineEnd = `${todayRightInset}px`;
+                targetScroll = elLeft + elWidth - stripWidth + todayRightInset;
             } else {
                 // ALIGN CENTER: em telas maiores que mobile, usa centro óptico do header.
                 const axisOffset = stripWidth > 480
