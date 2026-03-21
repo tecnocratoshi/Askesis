@@ -287,8 +287,6 @@ export function scrollToSelectedDate(smooth = true) {
             const stripWidth = ui.calendarStrip.clientWidth;
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
-            const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-            const isNarrowViewport = viewportWidth <= 384;
             
             let targetScroll;
 
@@ -298,11 +296,7 @@ export function scrollToSelectedDate(smooth = true) {
 
             // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
             // com o início do clipping à direita da viewport do calendário.
-            if (isNarrowViewport) {
-                ui.calendarStrip.style.scrollPaddingInlineEnd = '12px';
-            }
-
-            targetScroll = elLeft + elWidth - stripWidth + (isNarrowViewport ? 12 : 0);
+            targetScroll = elLeft + elWidth - stripWidth;
             
             ui.calendarStrip.scrollTo({
                 left: targetScroll,
