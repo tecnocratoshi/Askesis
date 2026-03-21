@@ -306,10 +306,6 @@ export function scrollToSelectedDate(smooth = true) {
             const elWidth = selectedEl.offsetWidth;
             const isToday = selectedEl.classList.contains(CSS_CLASSES.TODAY);
             const opticalAxisOffset = getOpticalAxisOffset(stripWidth);
-            const rightGapFromCSS = parseFloat(
-                getComputedStyle(ui.calendarStrip).getPropertyValue('--today-right-gap')
-            );
-            const todayRightGap = Number.isFinite(rightGapFromCSS) ? rightGapFromCSS : 0;
             
             let targetScroll;
 
@@ -317,22 +313,9 @@ export function scrollToSelectedDate(smooth = true) {
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
             if (isToday) {
-                // ALIGN END previsível: controla explicitamente a folga visual à direita via token CSS.
-                const rightGap = Math.max(0, Math.min(24, todayRightGap));
-
-                // Sincroniza o ponto de snap do CSS com o offset desejado.
-                // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
-                if (rightGap > 0) ui.calendarStrip.style.scrollPaddingInlineEnd = `${rightGap}px`;
-
-                const prevSibling = selectedEl.previousElementSibling as HTMLElement | null;
-                const gap = prevSibling
-                    ? elLeft - (prevSibling.offsetLeft + prevSibling.offsetWidth)
-                    : 0;
-                const step = elWidth + gap;
-                // Calcula o resíduo na área visível efetiva (descontando a folga à direita)
-                const visibleArea = stripWidth - rightGap;
-                const remainder = step > 0 ? (visibleArea + gap) % step : 0;
-                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + rightGap;
+                // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
+                // exatamente com o início do clipping à direita da viewport do calendário.
+                targetScroll = elLeft + elWidth - stripWidth;
             } else {
                 // ALIGN CENTER: em telas maiores que mobile, usa centro óptico do header.
                 const axisOffset = stripWidth > 480 ? opticalAxisOffset : (stripWidth / 2);
