@@ -272,6 +272,24 @@ export function renderFullCalendar() {
     ui.fullCalendarGrid.appendChild(frag);
 }
 
+function getOpticalAxisOffset(stripWidth: number): number {
+    if (!ui.calendarStrip) return stripWidth / 2;
+
+    const fab = ui.fabAddHabit as HTMLElement | null;
+    const iconStack = ui.manageHabitsBtn?.parentElement as HTMLElement | null;
+    if (!fab || !iconStack) return stripWidth / 2;
+
+    const stripRect = ui.calendarStrip.getBoundingClientRect();
+    const fabRect = fab.getBoundingClientRect();
+    const iconRect = iconStack.getBoundingClientRect();
+    const fabCenterX = fabRect.left + (fabRect.width / 2);
+    const iconCenterX = iconRect.left + (iconRect.width / 2);
+    const opticalAxisX = (fabCenterX + iconCenterX) / 2;
+    const axisOffset = opticalAxisX - stripRect.left;
+
+    return Math.max(0, Math.min(stripWidth, axisOffset));
+}
+
 /**
  * Rola a fita para posicionar o elemento selecionado.
  * LÓGICA CONTEXTUAL: "Hoje" alinha à direita (histórico), outros centralizam.
@@ -287,6 +305,7 @@ export function scrollToSelectedDate(smooth = true) {
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
             const isToday = selectedEl.classList.contains(CSS_CLASSES.TODAY);
+            const opticalAxisOffset = getOpticalAxisOffset(stripWidth);
             const rightGapFromCSS = parseFloat(
                 getComputedStyle(ui.calendarStrip).getPropertyValue('--today-right-gap')
             );
@@ -315,8 +334,9 @@ export function scrollToSelectedDate(smooth = true) {
                 const remainder = step > 0 ? (visibleArea + gap) % step : 0;
                 targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + rightGap;
             } else {
-                // ALIGN CENTER: contexto balanceado.
-                targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
+                // ALIGN CENTER: em telas maiores que mobile, usa centro óptico do header.
+                const axisOffset = stripWidth > 480 ? opticalAxisOffset : (stripWidth / 2);
+                targetScroll = elLeft - axisOffset + (elWidth / 2);
             }
             
             ui.calendarStrip.scrollTo({

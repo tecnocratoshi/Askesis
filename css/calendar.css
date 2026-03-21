@@ -19,7 +19,7 @@
 
 @media (min-width: 390px) and (max-width: 480px) {
     .calendar-strip {
-        --today-right-gap: 5px;
+        --today-right-gap: 2px;
     }
 }
 .calendar-strip::-webkit-scrollbar { display: none; }
