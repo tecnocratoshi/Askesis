@@ -272,33 +272,6 @@ export function renderFullCalendar() {
     ui.fullCalendarGrid.appendChild(frag);
 }
 
-function getCalendarOpticalAxisOffset(stripWidth: number): number {
-    if (!ui.calendarStrip || stripWidth >= 500) return stripWidth / 2;
-
-    const fab = ui.fabAddHabit as HTMLElement | null;
-    const iconStack = ui.manageHabitsBtn?.parentElement as HTMLElement | null;
-    if (!fab || !iconStack) {
-        return stripWidth / 2;
-    }
-
-    const stripRect = ui.calendarStrip.getBoundingClientRect();
-    const fabRect = fab.getBoundingClientRect();
-    const iconRect = iconStack.getBoundingClientRect();
-    const fabCenterX = fabRect.left + (fabRect.width / 2);
-    const iconCenterX = iconRect.left + (iconRect.width / 2);
-    const opticalAxisX = (fabCenterX + iconCenterX) / 2;
-    const rawAxisOffset = opticalAxisX - stripRect.left;
-    const geometricCenter = stripWidth / 2;
-
-    // Em telas móveis maiores, usamos apenas o eixo óptico real.
-    // Em telas menores, mantemos uma suavização leve para evitar overcorrection.
-    const axisOffset = stripWidth >= 390
-        ? rawAxisOffset + 7
-        : geometricCenter + ((rawAxisOffset - geometricCenter) * 0.85) - 1;
-
-    return Math.max(0, Math.min(stripWidth, axisOffset));
-}
-
 /**
  * Rola a fita para posicionar o elemento selecionado.
  * LÓGICA CONTEXTUAL: "Hoje" alinha à direita (histórico), outros centralizam.
@@ -314,7 +287,10 @@ export function scrollToSelectedDate(smooth = true) {
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
             const isToday = selectedEl.classList.contains(CSS_CLASSES.TODAY);
-            const axisOffset = getCalendarOpticalAxisOffset(stripWidth);
+            const rightGapFromCSS = parseFloat(
+                getComputedStyle(ui.calendarStrip).getPropertyValue('--today-right-gap')
+            );
+            const todayRightGap = Number.isFinite(rightGapFromCSS) ? rightGapFromCSS : 0;
             
             let targetScroll;
 
@@ -322,31 +298,25 @@ export function scrollToSelectedDate(smooth = true) {
             ui.calendarStrip.style.scrollPaddingInlineEnd = '';
 
             if (isToday) {
-                // ALIGN END (Right): hoje como último item visível, alinhando a janela visível
-                // ao eixo óptico entre o FAB e a pilha de ícones.
-                const geometricCenter = stripWidth / 2;
-                const axisDelta = axisOffset - geometricCenter;
-                const baseBreathingRoom = stripWidth >= 390 ? 5 : 12;
-                const breathingRoom = Math.max(0, Math.min(24, baseBreathingRoom));
-                const opticalShift = Math.round(axisDelta);
+                // ALIGN END previsível: controla explicitamente a folga visual à direita via token CSS.
+                const rightGap = Math.max(0, Math.min(24, todayRightGap));
 
                 // Sincroniza o ponto de snap do CSS com o offset desejado.
                 // Sem isso, scroll-snap-type: mandatory ignoraria o targetScroll e voltaria à posição original.
-                if (breathingRoom > 0) ui.calendarStrip.style.scrollPaddingInlineEnd = `${breathingRoom}px`;
+                if (rightGap > 0) ui.calendarStrip.style.scrollPaddingInlineEnd = `${rightGap}px`;
 
                 const prevSibling = selectedEl.previousElementSibling as HTMLElement | null;
                 const gap = prevSibling
                     ? elLeft - (prevSibling.offsetLeft + prevSibling.offsetWidth)
                     : 0;
                 const step = elWidth + gap;
-                // Calcula o resíduo na área visível efetiva (descontando o respiro)
-                const visibleArea = stripWidth - breathingRoom;
+                // Calcula o resíduo na área visível efetiva (descontando a folga à direita)
+                const visibleArea = stripWidth - rightGap;
                 const remainder = step > 0 ? (visibleArea + gap) % step : 0;
-                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + breathingRoom - opticalShift;
+                targetScroll = elLeft + elWidth - stripWidth + Math.floor(remainder / 2) + rightGap;
             } else {
-                // ALIGN OPTICAL CENTER: em mobile, centraliza no eixo óptico do header;
-                // fora disso, preserva o centro geométrico original.
-                targetScroll = elLeft - axisOffset + (elWidth / 2);
+                // ALIGN CENTER: contexto balanceado.
+                targetScroll = elLeft - (stripWidth / 2) + (elWidth / 2);
             }
             
             ui.calendarStrip.scrollTo({

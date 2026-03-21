@@ -1,6 +1,7 @@
 
 /* --- COMPONENTES: CALENDÁRIO --- */
 .calendar-strip {
+    --today-right-gap: 12px;
     display: flex;
     gap: var(--space-sm);
     overflow-x: auto;
@@ -14,6 +15,12 @@
     scroll-snap-type: x mandatory;
     padding-inline-start: 0;
     padding-inline-end: 0;
+}
+
+@media (min-width: 390px) and (max-width: 480px) {
+    .calendar-strip {
+        --today-right-gap: 5px;
+    }
 }
 .calendar-strip::-webkit-scrollbar { display: none; }
 
