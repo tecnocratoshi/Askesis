@@ -287,7 +287,7 @@ export function scrollToSelectedDate(smooth = true) {
             const stripWidth = ui.calendarStrip.clientWidth;
             const elLeft = selectedEl.offsetLeft;
             const elWidth = selectedEl.offsetWidth;
-            const rightEdgeOffset = 2;
+            const rightEdgeOffset = 3;
             
             let targetScroll;
 
@@ -297,7 +297,7 @@ export function scrollToSelectedDate(smooth = true) {
 
             // ALIGN EDGE-TO-CLIP: a borda direita do highlight selecionado coincide
             // com o início do clipping à direita da viewport do calendário,
-            // com um ajuste óptico fixo de 2px em todas as telas.
+            // com um ajuste óptico fixo de 3px em todas as telas.
             ui.calendarStrip.style.scrollPaddingInlineEnd = `${rightEdgeOffset}px`;
 
             targetScroll = elLeft + elWidth - stripWidth + rightEdgeOffset;
