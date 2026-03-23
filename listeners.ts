@@ -125,17 +125,20 @@ export function setupEventListeners() {
             if (perm === 'granted') {
                 setLocalPushOptIn(true);
                 updateNotificationUI();
-                // sw.js já inclui o OneSignal SW SDK; o init() do ensureOneSignalReady
-                // registra o SW via serviceWorkerPath — não precisamos registrar aqui.
+                logger.info('[Push] Auto-prompt: permission granted, starting OneSignal...');
                 ensureOneSignalReady()
                     .then(async (OneSignal) => {
+                        logger.info('[Push] Auto-prompt: OneSignal ready, calling optIn()...');
                         try {
                             await OneSignal.User.PushSubscription.optIn?.();
-                        } catch {}
-                        // Atualiza UI após optIn() completar: confirma estado final da subscription.
+                            logger.info('[Push] Auto-prompt: optIn() completed. optedIn=' + !!OneSignal.User.PushSubscription.optedIn);
+                        } catch (e) {
+                            logger.error('[Push] Auto-prompt: optIn() failed:', e);
+                        }
                         updateNotificationUI();
                     })
-                    .catch(() => {
+                    .catch((e) => {
+                        logger.error('[Push] Auto-prompt: ensureOneSignalReady failed:', e);
                         updateNotificationUI();
                     });
             } else if (perm === 'denied') {

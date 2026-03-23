@@ -226,18 +226,17 @@ const _handleNotificationToggleChange = async () => {
             // (localOptIn=true, permission=granted) para manter o toggle visualmente ativo.
             ensureOneSignalReady()
                 .then(async (OneSignal) => {
-                    // optIn() re-assina após optOut(). É o método correto no SDK v16.
-                    // Não sobrescrever localOptIn aqui: optedIn pode ser false momentaneamente
-                    // enquanto a subscription ainda está sendo criada de forma assíncrona.
+                    logger.info('[Push] Toggle ON: OneSignal ready, calling optIn()...');
                     try {
                         await OneSignal.User.PushSubscription.optIn();
-                    } catch {}
+                        logger.info('[Push] Toggle ON: optIn() completed. optedIn=' + !!OneSignal.User.PushSubscription.optedIn);
+                    } catch (e) {
+                        logger.error('[Push] Toggle ON: optIn() failed:', e);
+                    }
                     updateNotificationUI();
-                    // sw.js já inclui o OneSignal SW SDK e o init() cuida do registro
-                    // via serviceWorkerPath — não é necessário registrar aqui.
                 })
-                .catch(() => {
-                    // Se falhar, mantemos permissão do browser, mas não garantimos subscription.
+                .catch((e) => {
+                    logger.error('[Push] Toggle ON: ensureOneSignalReady failed:', e);
                     updateNotificationUI();
                 });
         } else {

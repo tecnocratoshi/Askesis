@@ -427,46 +427,53 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
     if (typeof window === 'undefined') throw new Error('OneSignal unavailable');
     const oneSignalWindow = window as OneSignalWindow;
 
-    // IMPORTANTE: checar _oneSignalInitPromise ANTES de window.OneSignal.
-    // O SDK v16 seta window.OneSignal sincronamente ao carregar o script, mas
-    // init() é assimíncrono. Retornar window.OneSignal antes de init() completar
-    // entrega uma instância não-inicializada onde optIn() falha silenciosamente.
-    if (_oneSignalInitPromise) return _oneSignalInitPromise;
-    if (oneSignalWindow.OneSignal) return oneSignalWindow.OneSignal;
+    if (_oneSignalInitPromise) {
+        logger.info('[OneSignal] Reusing existing init promise');
+        return _oneSignalInitPromise;
+    }
+    if (oneSignalWindow.OneSignal) {
+        logger.info('[OneSignal] Already initialized on window');
+        return oneSignalWindow.OneSignal;
+    }
 
+    logger.info('[OneSignal] Starting fresh initialization...');
     _oneSignalInitPromise = (async () => {
         oneSignalWindow.OneSignalDeferred = oneSignalWindow.OneSignalDeferred || [];
         const ready = new Promise<OneSignalLike>((resolve, reject) => {
             oneSignalWindow.OneSignalDeferred!.push(async (OneSignal: OneSignalLike) => {
                 try {
+                    logger.info('[OneSignal] SDK callback fired, calling init()...');
                     await OneSignal.init({
                         appId: ONESIGNAL_APP_ID,
                         allowLocalhostAsSecureOrigin: true,
-                        // Aponta para nosso sw.js (que já importa OneSignalSDK.sw.js).
-                        // init() do SDK v16 registra/atualiza o SW e aguarda sua ativação
-                        // internamente — não precisamos pré-registrar aqui.
                         serviceWorkerPath: 'sw.js',
                     } as any);
+                    logger.info('[OneSignal] init() completed successfully');
                     resolve(OneSignal);
                 } catch (e: any) {
+                    logger.error('[OneSignal] init() failed:', e);
                     reject(e);
                 }
             });
         });
 
+        logger.info('[OneSignal] Loading SDK script...');
         await _loadScript(ONESIGNAL_SDK_URL);
+        logger.info('[OneSignal] SDK script loaded, waiting for init...');
         const oneSignal = await ready;
+
+        const optedIn = !!(oneSignal as any)?.User?.PushSubscription?.optedIn;
+        const nativePerm = (typeof Notification !== 'undefined') ? (Notification as any).permission : 'default';
+        logger.info('[OneSignal] Post-init state: optedIn=' + optedIn + ', nativePerm=' + nativePerm);
+
         try {
-            const optedIn = !!(oneSignal as any)?.User?.PushSubscription?.optedIn;
-            const nativePerm = (typeof Notification !== 'undefined') ? (Notification as any).permission : 'default';
             if (optedIn || nativePerm !== 'granted') {
                 setLocalPushOptIn(optedIn);
             }
         } catch {}
         return oneSignal;
     })().catch((e) => {
-        // Reset para permitir nova tentativa (ex: após recuperação de rede).
-        // Sem isso, uma falha no carregamento do SDK bloqueia todas as tentativas da sessão.
+        logger.error('[OneSignal] Initialization failed completely:', e);
         _oneSignalInitPromise = null;
         throw e;
     });
