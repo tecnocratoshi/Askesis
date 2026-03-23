@@ -245,9 +245,13 @@ function finalizeInit(loader: HTMLElement | null) {
         // IMPORTANTE: NÃO chamamos requestPermission() aqui — isso está fora de um gesto do usuário
         // e no iOS Safari PWA causaria interferência (silenciosamente bloqueado pelo WebKit),
         // além de conflitar com a solicitação feita pelo toggle. Apenas inicializamos a conexão.
-        const permission = (typeof Notification !== 'undefined' && (Notification as any).permission) ? (Notification as any).permission : 'default';
-        if (getLocalPushOptIn() === true && permission === 'granted') {
-            ensureOneSignalReady().catch(() => {});
+        try {
+            const permission = (typeof Notification !== 'undefined' && (Notification as any).permission) ? (Notification as any).permission : 'default';
+            if (getLocalPushOptIn() === true && permission === 'granted') {
+                ensureOneSignalReady().catch(() => {});
+            }
+        } catch (e) {
+            logger.warn('[Boot] runBackgroundTasks: push opt-in check failed', e);
         }
     };
     if ((window as any).scheduler?.postTask) {

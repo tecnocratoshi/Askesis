@@ -72,7 +72,7 @@ if (self.workbox) {
     );
 } else {
     // --- FALLBACK: Cache manual mínimo (sem Workbox) ---
-    const CACHE_NAME = 'askesis-fallback-v1';
+    const CACHE_NAME = 'askesis-fallback-v2';
     const CACHE_FILES = [
         '/',
         '/index.html',
