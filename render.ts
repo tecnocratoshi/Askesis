@@ -283,10 +283,22 @@ export function updateNotificationUI() {
     }
 
     pushToOneSignal((OneSignal: OneSignalLike) => {
-        const isPushEnabled = OneSignal.User.PushSubscription.optedIn;
+        const isPushEnabled = !!OneSignal.User.PushSubscription.optedIn;
         const permission = OneSignal.Notifications.permission;
-        setLocalPushOptIn(!!isPushEnabled);
-        if (ui.notificationToggle.checked !== !!isPushEnabled) ui.notificationToggle.checked = !!isPushEnabled;
+        const nativeGranted = (typeof Notification !== 'undefined') && (Notification as any).permission === 'granted';
+        const localOptIn = getLocalPushOptIn();
+        // Só persistir estado quando OneSignal é autoritativo:
+        // - true: sempre persiste (subscrição confirmada)
+        // - false: só persiste se localOptIn já era não-null (confirma opt-out explícito).
+        //   Nunca gravar false quando localOptIn===null: preserva elegibilidade do auto-prompt.
+        if (isPushEnabled) {
+            setLocalPushOptIn(true);
+        } else if (localOptIn !== null) {
+            setLocalPushOptIn(false);
+        }
+        // Estado efetivo: confia no local otimista enquanto optIn() ainda está finalizando.
+        const effectiveEnabled = isPushEnabled || (localOptIn === true && nativeGranted);
+        if (ui.notificationToggle.checked !== effectiveEnabled) ui.notificationToggle.checked = effectiveEnabled;
         const isDenied = permission === 'denied';
         if (ui.notificationToggle.disabled !== isDenied) {
             ui.notificationToggle.disabled = isDenied;
@@ -294,7 +306,7 @@ export function updateNotificationUI() {
         }
         let statusTextKey = 'notificationStatusOptedOut';
         if (isDenied) statusTextKey = 'notificationStatusDisabled';
-        else if (isPushEnabled) statusTextKey = 'notificationStatusEnabled';
+        else if (effectiveEnabled) statusTextKey = 'notificationStatusEnabled';
         setTextContent(ui.notificationStatusDesc, t(statusTextKey));
     });
 }

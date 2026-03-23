@@ -129,7 +129,7 @@ export function setupEventListeners() {
                     navigator.serviceWorker.register('./sw.js?push=1').catch(() => {});
                 }
                 ensureOneSignalReady()
-                    .then((OneSignal) => OneSignal.Notifications.requestPermission?.().catch(() => {}))
+                    .then((OneSignal) => OneSignal.User.PushSubscription.optIn?.().catch(() => {}))
                     .catch(() => {});
             } else if (perm === 'denied') {
                 setLocalPushOptIn(false);

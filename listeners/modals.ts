@@ -220,18 +220,17 @@ const _handleNotificationToggleChange = async () => {
             setLocalPushOptIn(true);
             updateNotificationUI();
 
-            // 3) Aguardar o OneSignal finalizar a subscription.
-            // IMPORTANTE: não usar fire-and-forget aqui — o bloco `finally` leria o estado
-            // stale do OneSignal (optedIn=false) e reverteria o toggle antes do optIn concluir.
-            await ensureOneSignalReady()
+            // 3) Carrega OneSignal em background (fire-and-forget) para finalizar subscription.
+            // Não usar await aqui: o bloco `finally` liberaria o toggle só após o SDK carregar,
+            // travando a UI. O `updateNotificationUI()` do finally usa o estado nativo+local
+            // (localOptIn=true, permission=granted) para manter o toggle visualmente ativo.
+            ensureOneSignalReady()
                 .then(async (OneSignal) => {
-                    // optIn() re-subscreve após optOut(). É o método correto no SDK v16.
-                    // requestPermission() só solicita permissão nativa e não conclui re-inscrição.
+                    // optIn() re-assina após optOut(). É o método correto no SDK v16.
+                    // Não sobrescrever localOptIn aqui: optedIn pode ser false momentaneamente
+                    // enquanto a subscription ainda está sendo criada de forma assíncrona.
                     try {
                         await OneSignal.User.PushSubscription.optIn();
-                    } catch {}
-                    try {
-                        setLocalPushOptIn(!!OneSignal.User.PushSubscription.optedIn);
                     } catch {}
                     updateNotificationUI();
 

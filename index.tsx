@@ -72,7 +72,8 @@ function isRunningAsInstalledPwa(): boolean {
 
 function setupInstallPromptCapture() {
     window.addEventListener('beforeinstallprompt', (event) => {
-        // Do not cancel default behavior: compatible browsers can keep their native install recommendation flow.
+        // Previne o mini-infobar automático do browser: controlamos quando mostrar via event.prompt().
+        event.preventDefault();
         browserSupportsNativeInstallPrompt = true;
         deferredInstallPrompt = event as BeforeInstallPromptEvent;
     });
@@ -124,16 +125,15 @@ function recommendInstallForNewUsers(isFirstTimeUser: boolean) {
         );
     };
 
-    // Safari/iOS does not provide beforeinstallprompt. Show direct guidance for manual A2HS install.
+    // Safari/iOS não dispara beforeinstallprompt — exibe guia manual de A2HS.
     if (isSafariFamily && !browserSupportsNativeInstallPrompt) {
         openManualInstallHelp();
         return;
     }
 
-    // If the browser can recommend install natively, do not compete with that UX.
-    if (browserSupportsNativeInstallPrompt) return;
-
-    // In non-Safari browsers, avoid manual fallback here: native recommendation can appear later.
+    // Chrome/Edge/Brave/Opera (Android + Desktop): usa o deferredInstallPrompt capturado.
+    // A checagem anterior de browserSupportsNativeInstallPrompt foi removida pois tornava
+    // o showConfirmationModal abaixo código morto — nunca alcançado nesses navegadores.
     if (!deferredInstallPrompt) return;
 
     showConfirmationModal(
