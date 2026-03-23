@@ -447,7 +447,7 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
                         await OneSignal.init({
                             appId: ONESIGNAL_APP_ID,
                             allowLocalhostAsSecureOrigin: true,
-                            serviceWorkerPath: 'sw.js',
+                            serviceWorkerPath: '/sw.js',
                             serviceWorkerParam: { scope: '/' },
                         } as any);
                         logger.info('[OneSignal] init() completed successfully');
@@ -470,8 +470,20 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
         logger.info('[OneSignal] Post-init state: optedIn=' + optedIn + ', nativePerm=' + nativePerm);
 
         try {
-            if (optedIn || nativePerm !== 'granted') {
-                setLocalPushOptIn(optedIn);
+            // Se o OneSignal disser true, mas o usuário tiver setado false nativamente 
+            // no localStorage (revogação de opt-in), NÃO sobrescreva como true 
+            // pois overrides a escolha humana. Apenas atualiza se não estivesse recusado (false).
+            const currentLocal = getLocalPushOptIn();
+            if ((optedIn && currentLocal !== false) || nativePerm !== 'granted') {
+                // nativePerm !== granted força sync da revogação do browser para o localStorage
+                if (nativePerm !== 'granted' && currentLocal === true) {
+                    setLocalPushOptIn(false);
+                } else if (optedIn) {
+                    setLocalPushOptIn(optedIn);
+                }
+            } else if (!optedIn && currentLocal === true) {
+                // Descompasso: o browser diz true e o localOptIn diz true, mas OneSignal está off.
+                // O boot heal fará o resync. Não mutar para false aqui.
             }
         } catch {}
         return oneSignal;

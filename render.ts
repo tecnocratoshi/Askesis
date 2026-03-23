@@ -289,26 +289,20 @@ export function updateNotificationUI() {
 
     pushToOneSignal((OneSignal: OneSignalLike) => {
         const isPushEnabled = !!OneSignal.User.PushSubscription.optedIn;
-        const permission = OneSignal.Notifications.permission;
         const nativeGranted = (typeof Notification !== 'undefined') && (Notification as any).permission === 'granted';
+        const nativeDenied = (typeof Notification !== 'undefined') && (Notification as any).permission === 'denied';
         const localOptIn = getLocalPushOptIn();
-        // Persistência seletiva do estado autoritativo:
-        // - true: sempre persiste (subscription confirmada pelo SDK)
-        // - false: só persiste se permissão nativa TAMBÉM não está concedida.
-        //   Quando nativeGranted=true + isPushEnabled=false, a subscription ainda está sendo
-        //   criada via optIn() assíncrono. Sobrescrever com false aqui destrói o estado local
-        //   e faz o toggle passar para OFF na próxima leitura (via localOptIn=false).
-        //   Também nunca gravar false quando localOptIn===null: preserva elegibilidade do auto-prompt.
-        if (isPushEnabled) {
-            setLocalPushOptIn(true);
-        } else if (!nativeGranted && localOptIn !== null) {
-            // Permissão nativa foi revogada pelo browser: sincroniza estado local.
-            setLocalPushOptIn(false);
-        }
-        // Estado efetivo: confia no local otimista enquanto optIn() ainda está finalizando.
-        const effectiveEnabled = isPushEnabled || (localOptIn === true && nativeGranted);
+        
+        // Remove mutações agressivas de estado (setLocalPushOptIn) de dentro deste método de renderização
+        // que causavam race conditions quando o optOut() nativo demorava a refletir no isPushEnabled.
+        
+        // Estado efetivo: confia estritamente no local se o nativo estiver granted. 
+        // Não force true só porque a API OneSignal atrasou em atualizar o optedIn.
+        const effectiveEnabled = localOptIn === true && nativeGranted && !nativeDenied;
+        
         if (ui.notificationToggle.checked !== effectiveEnabled) ui.notificationToggle.checked = effectiveEnabled;
-        const isDenied = permission === 'denied';
+        const isDenied = nativeDenied;
+        
         if (ui.notificationToggle.disabled !== isDenied) {
             ui.notificationToggle.disabled = isDenied;
             ui.notificationToggleLabel.classList.toggle('disabled', isDenied);

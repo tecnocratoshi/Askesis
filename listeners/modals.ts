@@ -242,10 +242,19 @@ const _handleNotificationToggleChange = async () => {
         } else {
             ui.notificationToggle.disabled = true;
             setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
-            // Desativar: aqui faz sentido carregar OneSignal para de fato opt-out.
-            const OneSignal = await ensureOneSignalReady();
-            await OneSignal.User.PushSubscription.optOut();
+            
+            // Forçamos o estado local false IMEDIATAMENTE para evitar race conditions com a UI
+            // antes mesmo de pedir ao OneSignal que faça o optOut, pois optOut pode demorar.
+            ui.notificationToggle.checked = false;
             setLocalPushOptIn(false);
+            
+            try {
+                // Desativar: tenta carregar OneSignal e pedir opt-out no backend também.
+                const OneSignal = await ensureOneSignalReady();
+                await OneSignal.User.PushSubscription.optOut();
+            } catch (err) {
+                logger.warn('[Push] Failed to gracefully optOut from OneSignal SDK, reverting state locally anyway.', err);
+            }
 
             // Mantém o SW registrado: caching e push são tratados pelo mesmo sw.js.
             if ('serviceWorker' in navigator) {
