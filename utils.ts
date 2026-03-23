@@ -440,21 +440,23 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
     _oneSignalInitPromise = (async () => {
         oneSignalWindow.OneSignalDeferred = oneSignalWindow.OneSignalDeferred || [];
         const ready = new Promise<OneSignalLike>((resolve, reject) => {
-            oneSignalWindow.OneSignalDeferred!.push(async (OneSignal: OneSignalLike) => {
-                try {
-                    logger.info('[OneSignal] SDK callback fired, calling init()...');
-                    await OneSignal.init({
-                        appId: ONESIGNAL_APP_ID,
-                        allowLocalhostAsSecureOrigin: true,
-                        serviceWorkerPath: 'sw.js',
-                        serviceWorkerParam: { scope: '/' },
-                    } as any);
-                    logger.info('[OneSignal] init() completed successfully');
-                    resolve(OneSignal);
-                } catch (e: any) {
-                    logger.error('[OneSignal] init() failed:', e);
-                    reject(e);
-                }
+            oneSignalWindow.OneSignalDeferred!.push((OneSignal: OneSignalLike) => {
+                (async () => {
+                    try {
+                        logger.info('[OneSignal] SDK callback fired, calling init()...');
+                        await OneSignal.init({
+                            appId: ONESIGNAL_APP_ID,
+                            allowLocalhostAsSecureOrigin: true,
+                            serviceWorkerPath: 'sw.js',
+                            serviceWorkerParam: { scope: '/' },
+                        } as any);
+                        logger.info('[OneSignal] init() completed successfully');
+                        resolve(OneSignal);
+                    } catch (e: any) {
+                        logger.error('[OneSignal] init() failed:', e);
+                        reject(e);
+                    }
+                })();
             });
         });
 

@@ -165,7 +165,7 @@ const registerServiceWorker = () => {
     if ('serviceWorker' in navigator && !window.location.protocol.startsWith('file')) {
         const loadSW = () => {
             // sw.js sempre importa o OneSignalSDK.sw.js agora: não há mais distinção ?push=1.
-            navigator.serviceWorker.register('./sw.js')
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
                 .then(registration => {
                     logger.info('Service Worker registered with scope:', registration.scope);
                 })
@@ -248,7 +248,18 @@ function finalizeInit(loader: HTMLElement | null) {
         try {
             const permission = (typeof Notification !== 'undefined' && (Notification as any).permission) ? (Notification as any).permission : 'default';
             if (getLocalPushOptIn() === true && permission === 'granted') {
-                ensureOneSignalReady().catch(() => {});
+                ensureOneSignalReady().then(async (OneSignal) => {
+                    // Sync: se o estado local diz que está inscrito nativamente, mas o OneSignal perdeu 
+                    // a sessão no IndexedDB (ex: limpeza de dados), forçamos a re-inscrição (optIn) no background.
+                    try {
+                        if (!OneSignal.User.PushSubscription.optedIn) {
+                            logger.info('[Boot] Resyncing OneSignal subscription (local=true, onesignal=false)');
+                            await OneSignal.User.PushSubscription.optIn();
+                        }
+                    } catch (e) {
+                        logger.error('[Boot] Resync optIn failed:', e);
+                    }
+                }).catch(() => {});
             } else if (getLocalPushOptIn() === true && permission === 'default') {
                 // Estado stale: iOS/Safari reinstalado reseta Notification.permission para 'default'
                 // mas preserva o localStorage. Limpar permite que o auto-prompt dispare novamente.
