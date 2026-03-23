@@ -28,7 +28,7 @@ import { initSync } from './listeners/sync';
 import { fetchStateFromCloud, syncStateWithCloud, setSyncStatus } from './services/cloud';
 import { hasLocalSyncKey, initAuth } from './services/api';
 import { updateAppBadge } from './services/badge';
-import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady } from './utils';
+import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, clearPushPermissionState } from './utils';
 import { BOOT_RELOAD_DELAY_MS, BOOT_SYNC_TIMEOUT_MS } from './constants';
 import { t } from './i18n';
 
@@ -249,6 +249,10 @@ function finalizeInit(loader: HTMLElement | null) {
             const permission = (typeof Notification !== 'undefined' && (Notification as any).permission) ? (Notification as any).permission : 'default';
             if (getLocalPushOptIn() === true && permission === 'granted') {
                 ensureOneSignalReady().catch(() => {});
+            } else if (getLocalPushOptIn() === true && permission === 'default') {
+                // Estado stale: iOS/Safari reinstalado reseta Notification.permission para 'default'
+                // mas preserva o localStorage. Limpar permite que o auto-prompt dispare novamente.
+                clearPushPermissionState();
             }
         } catch (e) {
             logger.warn('[Boot] runBackgroundTasks: push opt-in check failed', e);

@@ -270,6 +270,11 @@ export function updateNotificationUI() {
         const isDenied = permission === 'denied';
         const localOptIn = getLocalPushOptIn();
         const isGranted = permission === 'granted';
+        // Quando o usuário revogou a permissão (denied) mas o flag local ainda diz opted-in,
+        // persiste a revogação para não tentar recarregar o OneSignal no próximo boot.
+        if (localOptIn === true && isDenied) {
+            setLocalPushOptIn(false);
+        }
         const assumeEnabled = isGranted && localOptIn === true;
         ui.notificationToggle.checked = assumeEnabled;
         ui.notificationToggle.disabled = isDenied;
