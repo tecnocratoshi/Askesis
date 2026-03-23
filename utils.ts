@@ -426,8 +426,13 @@ export function pushToOneSignal(callback: (oneSignal: OneSignalLike) => void) {
 export async function ensureOneSignalReady(): Promise<OneSignalLike> {
     if (typeof window === 'undefined') throw new Error('OneSignal unavailable');
     const oneSignalWindow = window as OneSignalWindow;
-    if (oneSignalWindow.OneSignal) return oneSignalWindow.OneSignal;
+
+    // IMPORTANTE: checar _oneSignalInitPromise ANTES de window.OneSignal.
+    // O SDK v16 seta window.OneSignal sincronamente ao carregar o script, mas
+    // init() é assimíncrono. Retornar window.OneSignal antes de init() completar
+    // entrega uma instância não-inicializada onde optIn() falha silenciosamente.
     if (_oneSignalInitPromise) return _oneSignalInitPromise;
+    if (oneSignalWindow.OneSignal) return oneSignalWindow.OneSignal;
 
     _oneSignalInitPromise = (async () => {
         oneSignalWindow.OneSignalDeferred = oneSignalWindow.OneSignalDeferred || [];
@@ -437,11 +442,10 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
                     await OneSignal.init({
                         appId: ONESIGNAL_APP_ID,
                         allowLocalhostAsSecureOrigin: true,
-                        // Aponta para o nosso sw.js (que já importa o OneSignalSDK.sw.js).
-                        // Sem isso, o SDK v16 procura OneSignalSDKWorker.js (inexistente) e
-                        // nunca cria a push subscription — causa raiz do registro incompleto.
+                        // Aponta para nosso sw.js (que já importa OneSignalSDK.sw.js).
+                        // init() do SDK v16 registra/atualiza o SW e aguarda sua ativação
+                        // internamente — não precisamos pré-registrar aqui.
                         serviceWorkerPath: 'sw.js',
-                        serviceWorkerParam: { scope: '/' },
                     } as any);
                     resolve(OneSignal);
                 } catch (e: any) {
@@ -450,9 +454,6 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
             });
         });
 
-        // Garante que sw.js com OneSignal SW SDK está ativo ANTES de carregar o SDK client.
-        // O init() do SDK precisa encontrar o SW funcional para criar a push subscription.
-        await enableOneSignalInServiceWorker();
         await _loadScript(ONESIGNAL_SDK_URL);
         const oneSignal = await ready;
         try {
@@ -463,7 +464,12 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
             }
         } catch {}
         return oneSignal;
-    })();
+    })().catch((e) => {
+        // Reset para permitir nova tentativa (ex: após recuperação de rede).
+        // Sem isso, uma falha no carregamento do SDK bloqueia todas as tentativas da sessão.
+        _oneSignalInitPromise = null;
+        throw e;
+    });
 
     return _oneSignalInitPromise;
 }
