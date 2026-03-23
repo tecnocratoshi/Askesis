@@ -318,6 +318,7 @@ type OneSignalLike = {
     User: {
         PushSubscription: {
             optOut(): Promise<void>;
+            optIn(): Promise<void>;
             optedIn?: boolean;
         };
         setLanguage?(lang: string): void;

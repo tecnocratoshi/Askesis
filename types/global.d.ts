@@ -20,6 +20,7 @@ declare global {
 
     interface OneSignalUserPushSubscription {
         optOut(): Promise<void>;
+        optIn(): Promise<void>;
         optedIn?: boolean;
     }
 
