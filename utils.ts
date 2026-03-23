@@ -309,6 +309,7 @@ const ONESIGNAL_OPTIN_STORAGE_KEY = 'askesis_onesignal_opted_in';
 const PUSH_PERMISSION_REQUESTED_KEY = 'askesis_push_permission_requested';
 const ONESIGNAL_SERVICE_WORKER_PATH = '/push/onesignal/OneSignalSDKWorker.js';
 const ONESIGNAL_SERVICE_WORKER_UPDATER_PATH = '/push/onesignal/OneSignalSDKUpdaterWorker.js';
+const ONESIGNAL_SERVICE_WORKER_SCOPE = '/push/onesignal/';
 
 type OneSignalLike = {
     init(options: {
@@ -418,7 +419,9 @@ function _loadScript(src: string): Promise<void> {
 export async function enableOneSignalInServiceWorker(): Promise<void> {
     try {
         if (!('serviceWorker' in navigator)) return;
-        await navigator.serviceWorker.register(ONESIGNAL_SERVICE_WORKER_PATH);
+        await navigator.serviceWorker.register(ONESIGNAL_SERVICE_WORKER_PATH, {
+            scope: ONESIGNAL_SERVICE_WORKER_SCOPE,
+        });
     } catch {}
 }
 
@@ -456,6 +459,7 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
                             allowLocalhostAsSecureOrigin: true,
                             serviceWorkerPath: ONESIGNAL_SERVICE_WORKER_PATH,
                             serviceWorkerUpdaterPath: ONESIGNAL_SERVICE_WORKER_UPDATER_PATH,
+                            serviceWorkerParam: { scope: ONESIGNAL_SERVICE_WORKER_SCOPE },
                         });
                         logger.info('[OneSignal] init() completed successfully');
                         resolve(OneSignal);

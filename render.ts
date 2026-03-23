@@ -296,9 +296,10 @@ export function updateNotificationUI() {
         // Remove mutações agressivas de estado (setLocalPushOptIn) de dentro deste método de renderização
         // que causavam race conditions quando o optOut() nativo demorava a refletir no isPushEnabled.
         
-        // Estado efetivo: confia estritamente no local se o nativo estiver granted. 
-        // Não force true só porque a API OneSignal atrasou em atualizar o optedIn.
-        const effectiveEnabled = localOptIn === true && nativeGranted && !nativeDenied;
+        // Estado efetivo: exige confirmação do SDK quando ele já está carregado.
+        // Isso evita falso positivo visual quando a permissão nativa foi concedida,
+        // mas a subscription do OneSignal ainda não foi concluída.
+        const effectiveEnabled = localOptIn === true && nativeGranted && !nativeDenied && isPushEnabled;
         
         if (ui.notificationToggle.checked !== effectiveEnabled) ui.notificationToggle.checked = effectiveEnabled;
         const isDenied = nativeDenied;

@@ -16,7 +16,7 @@ import { setupDragHandler } from './listeners/drag';
 import { setupSwipeHandler } from './listeners/swipe';
 import { setupCalendarListeners } from './listeners/calendar';
 import { setupChartListeners } from './listeners/chart';
-import { getTodayUTCIso, resetTodayCache, createDebounced, logger, getLocalPushOptIn, setLocalPushOptIn, hasRequestedPushPermission, getPushPermissionRequestAgeMs, markPushPermissionRequested, ensureOneSignalReady } from './utils';
+import { getTodayUTCIso, resetTodayCache, createDebounced, logger } from './utils';
 import { state, getPersistableState, invalidateCachesForDateChange } from './state';
 import { pullRemoteChanges, syncStateWithCloud } from './services/cloud';
 import { checkAndAnalyzeDayContext } from './services/analysis';
@@ -26,8 +26,6 @@ import { APP_EVENTS, CARD_EVENTS, emitDayChanged } from './events';
 let areListenersAttached = false;
 let visibilityRafId: number | null = null;
 let isHandlingVisibility = false;
-const PUSH_PERMISSION_RETRY_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-
 const _handleNetworkChange = createDebounced(() => {
     const isOnline = navigator.onLine;
     const wasOffline = document.body.classList.contains('is-offline');
@@ -106,58 +104,8 @@ export function setupEventListeners() {
     // Ainda assim, atualizamos a UI usando permissões nativas quando o SDK não estiver presente.
     updateNotificationUI();
 
-    // Prompt automático (com user activation): na primeira interação do usuário, se ainda não houve decisão.
-    // Isso recupera o comportamento "na primeira abertura" sem carregar SDKs no boot.
-    const maybeRequestPushPermission = async () => {
-        try {
-            if (typeof Notification === 'undefined') return;
-
-            const permission = (Notification as any).permission || 'default';
-            if (permission !== 'default') return;
-            if (getLocalPushOptIn() !== null) return;
-            if (hasRequestedPushPermission()) {
-                const ageMs = getPushPermissionRequestAgeMs();
-                if (ageMs !== null && ageMs < PUSH_PERMISSION_RETRY_COOLDOWN_MS) return;
-            }
-
-            markPushPermissionRequested();
-            const perm = (Notification as any).requestPermission ? await (Notification as any).requestPermission() : 'default';
-            if (perm === 'granted') {
-                setLocalPushOptIn(true);
-                updateNotificationUI();
-                logger.info('[Push] Auto-prompt: permission granted, starting OneSignal...');
-                ensureOneSignalReady()
-                    .then(async (OneSignal) => {
-                        logger.info('[Push] Auto-prompt: OneSignal ready, calling optIn()...');
-                        try {
-                            await OneSignal.User.PushSubscription.optIn?.();
-                            logger.info('[Push] Auto-prompt: optIn() completed. optedIn=' + !!OneSignal.User.PushSubscription.optedIn);
-                        } catch (e) {
-                            logger.error('[Push] Auto-prompt: optIn() failed:', e);
-                        }
-                        updateNotificationUI();
-                    })
-                    .catch((e) => {
-                        logger.error('[Push] Auto-prompt: ensureOneSignalReady failed:', e);
-                        updateNotificationUI();
-                    });
-            } else if (perm === 'denied') {
-                setLocalPushOptIn(false);
-                updateNotificationUI();
-            } else {
-                // User dismissed/ignored the browser prompt. Keep undecided state for future retries.
-                updateNotificationUI();
-            }
-        } catch {}
-    };
-
-    const oneShot = () => {
-        window.removeEventListener('pointerdown', oneShot, true);
-        window.removeEventListener('keydown', oneShot, true);
-        maybeRequestPushPermission();
-    };
-    window.addEventListener('pointerdown', oneShot, true);
-    window.addEventListener('keydown', oneShot, true);
+    // Auto-prompt desativado temporariamente para manter o diagnóstico determinístico.
+    // O subscribe agora acontece apenas por gesto explícito do usuário no modal.
 
     document.addEventListener(APP_EVENTS.renderApp, renderApp);
     document.addEventListener(APP_EVENTS.requestAnalysis, (e: Event) => {

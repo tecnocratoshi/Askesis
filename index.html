@@ -198,12 +198,11 @@
           };
 
           window.onerror = function(message, source, lineno, colno, error) {
-            // [ROBUSTNESS FIX]: Suppress domain-mismatch errors from OneSignal.
-            // These errors are expected on non-production domains and should not trigger the Fatal Error UI.
             var msg = message || (error && error.message) || "";
-            if (typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
+                        var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+                        if (isLocalhost && typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
               console.warn("Caught and suppressed OneSignal library error:", msg);
-              return true; // Prevents the error from being reported globally
+                            return true;
             }
             
             // IGNORE RESIZE OBSERVER LOOP ERROR: Benign warning in modern browsers when layout is stressed.
@@ -219,8 +218,8 @@
             var reason = event.reason;
             var msg = 'Erro Assíncrono: ' + (reason ? (reason.message || reason) : 'Desconhecido');
             
-            // Suppress OneSignal-related promise rejections
-            if (typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
+                        var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+                        if (isLocalhost && typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
                console.warn("Caught and suppressed OneSignal unhandled rejection:", msg);
                return;
             }

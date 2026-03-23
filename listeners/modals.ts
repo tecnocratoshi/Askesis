@@ -196,49 +196,37 @@ const _handleNotificationToggleChange = async () => {
 
     try {
         if (wantsEnabled) {
-            // 1) Primeiro, solicita permissão nativa do navegador (sem dependências externas).
-            // Isso permite deixar o toggle "verde" assim que o browser garantir a permissão.
+            ui.notificationToggle.disabled = true;
+            setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
+
+            const oneSignal = await ensureOneSignalReady();
             const currentPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
                 ? (Notification as any).permission
                 : 'default';
 
-            const perm = (currentPerm === 'default' && typeof Notification !== 'undefined' && (Notification as any).requestPermission)
-                ? await (Notification as any).requestPermission()
+            if (currentPerm === 'default') {
+                logger.info('[Push] Toggle ON: requesting permission through OneSignal SDK...');
+                await oneSignal.Notifications.requestPermission();
+            }
+
+            const resolvedPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
+                ? (Notification as any).permission
                 : currentPerm;
 
-            if (perm !== 'granted') {
+            if (resolvedPerm !== 'granted') {
                 ui.notificationToggle.checked = false;
                 setLocalPushOptIn(false);
                 setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
                 return;
             }
 
-            ui.notificationToggle.disabled = true;
-            setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
+            logger.info('[Push] Toggle ON: permission granted, calling optIn()...');
+            await oneSignal.User.PushSubscription.optIn();
+            logger.info('[Push] Toggle ON: optIn() completed. optedIn=' + !!oneSignal.User.PushSubscription.optedIn);
 
-            // 2) Persistimos opt-in local imediatamente (boot pode refletir o estado sem SDK).
             setLocalPushOptIn(true);
-            updateNotificationUI();
-
-            // 3) Carrega OneSignal em background (fire-and-forget) para finalizar subscription.
-            // Não usar await aqui: o bloco `finally` liberaria o toggle só após o SDK carregar,
-            // travando a UI. O `updateNotificationUI()` do finally usa o estado nativo+local
-            // (localOptIn=true, permission=granted) para manter o toggle visualmente ativo.
-            ensureOneSignalReady()
-                .then(async (OneSignal) => {
-                    logger.info('[Push] Toggle ON: OneSignal ready, calling optIn()...');
-                    try {
-                        await OneSignal.User.PushSubscription.optIn();
-                        logger.info('[Push] Toggle ON: optIn() completed. optedIn=' + !!OneSignal.User.PushSubscription.optedIn);
-                    } catch (e) {
-                        logger.error('[Push] Toggle ON: optIn() failed:', e);
-                    }
-                    updateNotificationUI();
-                })
-                .catch((e) => {
-                    logger.error('[Push] Toggle ON: ensureOneSignalReady failed:', e);
-                    updateNotificationUI();
-                });
+            ui.notificationToggle.checked = true;
+            setTextContent(ui.notificationStatusDesc, t('notificationStatusEnabled'));
         } else {
             ui.notificationToggle.disabled = true;
             setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
@@ -256,13 +244,13 @@ const _handleNotificationToggleChange = async () => {
                 logger.warn('[Push] Failed to gracefully optOut from OneSignal SDK, reverting state locally anyway.', err);
             }
 
-            // Mantém o SW registrado: caching e push são tratados pelo mesmo sw.js.
+            // Mantém o SW principal registrado para caching mesmo com o push desligado.
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('./sw.js').catch(() => {});
             }
         }
     } catch (e) {
-        // Se o SDK falhar (bloqueio do browser/domínio), reverte a UI para um estado seguro.
+        logger.error('[Push] Toggle change failed:', e);
         ui.notificationToggle.checked = false;
         setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
         setLocalPushOptIn(false);
