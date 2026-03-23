@@ -10,6 +10,10 @@
       "destination": "/sw.js"
     },
     {
+      "source": "/push/onesignal/OneSignalSDKWorker.js",
+      "destination": "/sw.js"
+    },
+    {
       "source": "/OneSignalSDKUpdaterWorker.js",
       "destination": "/sw.js"
     }
