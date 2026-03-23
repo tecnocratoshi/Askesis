@@ -199,9 +199,8 @@
 
           window.onerror = function(message, source, lineno, colno, error) {
             var msg = message || (error && error.message) || "";
-                        var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-                        if (isLocalhost && typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
-              console.warn("Caught and suppressed OneSignal library error:", msg);
+                        if (typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
+                            console.error("OneSignal runtime error:", msg, error || "");
                             return true;
             }
             
@@ -218,9 +217,8 @@
             var reason = event.reason;
             var msg = 'Erro Assíncrono: ' + (reason ? (reason.message || reason) : 'Desconhecido');
             
-                        var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-                        if (isLocalhost && typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
-               console.warn("Caught and suppressed OneSignal unhandled rejection:", msg);
+                if (typeof msg === 'string' && (msg.indexOf('OneSignal') !== -1 || msg.indexOf('onesignal') !== -1)) {
+                    console.error("OneSignal unhandled rejection:", reason);
                return;
             }
             

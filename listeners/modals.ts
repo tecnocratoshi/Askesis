@@ -209,6 +209,15 @@ const _handleNotificationToggleChange = async () => {
                 await oneSignal.Notifications.requestPermission();
             }
 
+            const permissionAfterSdkRequest = (typeof Notification !== 'undefined' && (Notification as any).permission)
+                ? (Notification as any).permission
+                : currentPerm;
+
+            if (permissionAfterSdkRequest === 'default' && typeof Notification !== 'undefined' && (Notification as any).requestPermission) {
+                logger.info('[Push] Toggle ON: OneSignal SDK did not resolve permission, falling back to native prompt...');
+                await (Notification as any).requestPermission();
+            }
+
             const resolvedPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
                 ? (Notification as any).permission
                 : currentPerm;
