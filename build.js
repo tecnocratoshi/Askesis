@@ -147,7 +147,8 @@ async function build() {
     // Copy Dirs
     await copyDir(path.resolve(__dirname, 'locales'), path.join(OUT_DIR, 'locales'));
     await copyDir(path.resolve(__dirname, 'icons'), path.join(OUT_DIR, 'icons'));
-    await copyDir(path.resolve(__dirname, 'assets'), path.join(OUT_DIR, 'assets')); 
+    await copyDir(path.resolve(__dirname, 'assets'), path.join(OUT_DIR, 'assets'));
+    await copyDir(path.resolve(__dirname, 'push'), path.join(OUT_DIR, 'push'));
 
     console.log('Build complete.');
 }

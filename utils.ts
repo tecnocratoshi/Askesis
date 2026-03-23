@@ -307,9 +307,17 @@ const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.p
 const ONESIGNAL_APP_ID = '39454655-f1cd-4531-8ec5-d0f61eb1c478';
 const ONESIGNAL_OPTIN_STORAGE_KEY = 'askesis_onesignal_opted_in';
 const PUSH_PERMISSION_REQUESTED_KEY = 'askesis_push_permission_requested';
+const ONESIGNAL_SERVICE_WORKER_PATH = '/push/onesignal/OneSignalSDKWorker.js';
+const ONESIGNAL_SERVICE_WORKER_UPDATER_PATH = '/push/onesignal/OneSignalSDKUpdaterWorker.js';
 
 type OneSignalLike = {
-    init(options: { appId: string; allowLocalhostAsSecureOrigin?: boolean }): Promise<void>;
+    init(options: {
+        appId: string;
+        allowLocalhostAsSecureOrigin?: boolean;
+        serviceWorkerPath?: string;
+        serviceWorkerUpdaterPath?: string;
+        serviceWorkerParam?: { scope?: string };
+    }): Promise<void>;
     Notifications: {
         addEventListener(event: 'permissionChange', handler: () => void): void;
         requestPermission(): Promise<void>;
@@ -410,8 +418,7 @@ function _loadScript(src: string): Promise<void> {
 export async function enableOneSignalInServiceWorker(): Promise<void> {
     try {
         if (!('serviceWorker' in navigator)) return;
-        // sw.js sempre inclui o OneSignalSDK.sw.js agora: sem distinção ?push=1.
-        await navigator.serviceWorker.register('./sw.js');
+        await navigator.serviceWorker.register(ONESIGNAL_SERVICE_WORKER_PATH);
     } catch {}
 }
 
@@ -447,9 +454,9 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
                         await OneSignal.init({
                             appId: ONESIGNAL_APP_ID,
                             allowLocalhostAsSecureOrigin: true,
-                            serviceWorkerPath: '/sw.js',
-                            serviceWorkerParam: { scope: '/' },
-                        } as any);
+                            serviceWorkerPath: ONESIGNAL_SERVICE_WORKER_PATH,
+                            serviceWorkerUpdaterPath: ONESIGNAL_SERVICE_WORKER_UPDATER_PATH,
+                        });
                         logger.info('[OneSignal] init() completed successfully');
                         resolve(OneSignal);
                     } catch (e: any) {

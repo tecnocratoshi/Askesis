@@ -30,7 +30,13 @@ declare global {
     }
 
     interface OneSignalLike {
-        init(options: { appId: string; allowLocalhostAsSecureOrigin?: boolean }): Promise<void>;
+        init(options: {
+            appId: string;
+            allowLocalhostAsSecureOrigin?: boolean;
+            serviceWorkerPath?: string;
+            serviceWorkerUpdaterPath?: string;
+            serviceWorkerParam?: { scope?: string };
+        }): Promise<void>;
         Notifications: OneSignalNotifications;
         User: OneSignalUser;
     }

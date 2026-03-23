@@ -7,15 +7,11 @@
   "rewrites": [
     {
       "source": "/OneSignalSDKWorker.js",
-      "destination": "/sw.js"
-    },
-    {
-      "source": "/push/onesignal/OneSignalSDKWorker.js",
-      "destination": "/sw.js"
+      "destination": "/push/onesignal/OneSignalSDKWorker.js"
     },
     {
       "source": "/OneSignalSDKUpdaterWorker.js",
-      "destination": "/sw.js"
+      "destination": "/push/onesignal/OneSignalSDKUpdaterWorker.js"
     }
   ],
   "headers": [
