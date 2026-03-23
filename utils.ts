@@ -447,6 +447,7 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
                         appId: ONESIGNAL_APP_ID,
                         allowLocalhostAsSecureOrigin: true,
                         serviceWorkerPath: 'sw.js',
+                        serviceWorkerParam: { scope: '/' },
                     } as any);
                     logger.info('[OneSignal] init() completed successfully');
                     resolve(OneSignal);
