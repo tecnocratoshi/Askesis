@@ -8,18 +8,14 @@
  * @description Service Worker: Proxy de Rede e Gerenciador de Cache (Offline Engine).
  */
 
-// Zero-deps por padrão: OneSignal SW SDK só é carregado quando o SW é registrado com ?push=1.
-// Isso garante que o handler de push esteja ativo mesmo com o app fechado, sem depender de mensagens do client.
-const _pushEnabled = (self.location && typeof self.location.search === 'string')
-    ? self.location.search.includes('push=1')
-    : false;
-
-if (_pushEnabled) {
-    try {
-        importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
-    } catch (e) {
-        // Non-blocking failure
-    }
+// OneSignal SW SDK é sempre importado para que o handler de push esteja ativo.
+// O init() do OneSignal no client configura serviceWorkerPath: 'sw.js', portanto este arquivo
+// é o ponto de entrada único para cache E push. O try/catch garante que uma falha de CDN
+// não quebre o SW de caching do app.
+try {
+    importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
+} catch (e) {
+    // Non-blocking: sem push, mas o SW de cache continua funcionando.
 }
 
 try {

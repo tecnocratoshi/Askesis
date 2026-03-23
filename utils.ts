@@ -410,7 +410,8 @@ function _loadScript(src: string): Promise<void> {
 export async function enableOneSignalInServiceWorker(): Promise<void> {
     try {
         if (!('serviceWorker' in navigator)) return;
-        await navigator.serviceWorker.register('./sw.js?push=1');
+        // sw.js sempre inclui o OneSignalSDK.sw.js agora: sem distinção ?push=1.
+        await navigator.serviceWorker.register('./sw.js');
     } catch {}
 }
 
@@ -436,6 +437,11 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
                     await OneSignal.init({
                         appId: ONESIGNAL_APP_ID,
                         allowLocalhostAsSecureOrigin: true,
+                        // Aponta para o nosso sw.js (que já importa o OneSignalSDK.sw.js).
+                        // Sem isso, o SDK v16 procura OneSignalSDKWorker.js (inexistente) e
+                        // nunca cria a push subscription — causa raiz do registro incompleto.
+                        serviceWorkerPath: 'sw.js',
+                        serviceWorkerParam: { scope: '/' },
                     } as any);
                     resolve(OneSignal);
                 } catch (e: any) {
@@ -444,21 +450,18 @@ export async function ensureOneSignalReady(): Promise<OneSignalLike> {
             });
         });
 
+        // Garante que sw.js com OneSignal SW SDK está ativo ANTES de carregar o SDK client.
+        // O init() do SDK precisa encontrar o SW funcional para criar a push subscription.
+        await enableOneSignalInServiceWorker();
         await _loadScript(ONESIGNAL_SDK_URL);
         const oneSignal = await ready;
         try {
             const optedIn = !!(oneSignal as any)?.User?.PushSubscription?.optedIn;
-            // Chrome/Brave Android, Safari e outros: logo após a init do OneSignal, optedIn pode
-            // ser false mesmo com permissão nativa concedida, porque a subscription ainda está sendo
-            // finalizada assincronamente. Não sobrescrever a intenção explícita do usuário nesses
-            // casos — só atualizar para false se o browser também não concedeu permissão.
             const nativePerm = (typeof Notification !== 'undefined') ? (Notification as any).permission : 'default';
             if (optedIn || nativePerm !== 'granted') {
                 setLocalPushOptIn(optedIn);
             }
         } catch {}
-        // Habilita SW (push delivery) só após opt-in explícito.
-        await enableOneSignalInServiceWorker();
         return oneSignal;
     })();
 

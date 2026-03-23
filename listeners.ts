@@ -125,9 +125,8 @@ export function setupEventListeners() {
             if (perm === 'granted') {
                 setLocalPushOptIn(true);
                 updateNotificationUI();
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.register('./sw.js?push=1').catch(() => {});
-                }
+                // sw.js já inclui o OneSignal SW SDK; o init() do ensureOneSignalReady
+                // registra o SW via serviceWorkerPath — não precisamos registrar aqui.
                 ensureOneSignalReady()
                     .then(async (OneSignal) => {
                         try {

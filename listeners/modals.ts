@@ -233,11 +233,8 @@ const _handleNotificationToggleChange = async () => {
                         await OneSignal.User.PushSubscription.optIn();
                     } catch {}
                     updateNotificationUI();
-
-                    // Garante recebimento de push em background: SW com ?push=1 carrega OneSignal SW SDK no boot.
-                    if ('serviceWorker' in navigator) {
-                        navigator.serviceWorker.register('./sw.js?push=1').catch(() => {});
-                    }
+                    // sw.js já inclui o OneSignal SW SDK e o init() cuida do registro
+                    // via serviceWorkerPath — não é necessário registrar aqui.
                 })
                 .catch(() => {
                     // Se falhar, mantemos permissão do browser, mas não garantimos subscription.
@@ -251,7 +248,7 @@ const _handleNotificationToggleChange = async () => {
             await OneSignal.User.PushSubscription.optOut();
             setLocalPushOptIn(false);
 
-            // Volta ao SW padrão (sem push=1) para manter zero-deps quando desabilitado.
+            // Mantém o SW registrado: caching e push são tratados pelo mesmo sw.js.
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('./sw.js').catch(() => {});
             }
