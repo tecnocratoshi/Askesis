@@ -129,8 +129,16 @@ export function setupEventListeners() {
                     navigator.serviceWorker.register('./sw.js?push=1').catch(() => {});
                 }
                 ensureOneSignalReady()
-                    .then((OneSignal) => OneSignal.User.PushSubscription.optIn?.().catch(() => {}))
-                    .catch(() => {});
+                    .then(async (OneSignal) => {
+                        try {
+                            await OneSignal.User.PushSubscription.optIn?.();
+                        } catch {}
+                        // Atualiza UI após optIn() completar: confirma estado final da subscription.
+                        updateNotificationUI();
+                    })
+                    .catch(() => {
+                        updateNotificationUI();
+                    });
             } else if (perm === 'denied') {
                 setLocalPushOptIn(false);
                 updateNotificationUI();

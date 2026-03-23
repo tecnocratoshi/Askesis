@@ -287,13 +287,17 @@ export function updateNotificationUI() {
         const permission = OneSignal.Notifications.permission;
         const nativeGranted = (typeof Notification !== 'undefined') && (Notification as any).permission === 'granted';
         const localOptIn = getLocalPushOptIn();
-        // Só persistir estado quando OneSignal é autoritativo:
-        // - true: sempre persiste (subscrição confirmada)
-        // - false: só persiste se localOptIn já era não-null (confirma opt-out explícito).
-        //   Nunca gravar false quando localOptIn===null: preserva elegibilidade do auto-prompt.
+        // Persistência seletiva do estado autoritativo:
+        // - true: sempre persiste (subscription confirmada pelo SDK)
+        // - false: só persiste se permissão nativa TAMBÉM não está concedida.
+        //   Quando nativeGranted=true + isPushEnabled=false, a subscription ainda está sendo
+        //   criada via optIn() assíncrono. Sobrescrever com false aqui destrói o estado local
+        //   e faz o toggle passar para OFF na próxima leitura (via localOptIn=false).
+        //   Também nunca gravar false quando localOptIn===null: preserva elegibilidade do auto-prompt.
         if (isPushEnabled) {
             setLocalPushOptIn(true);
-        } else if (localOptIn !== null) {
+        } else if (!nativeGranted && localOptIn !== null) {
+            // Permissão nativa foi revogada pelo browser: sincroniza estado local.
             setLocalPushOptIn(false);
         }
         // Estado efetivo: confia no local otimista enquanto optIn() ainda está finalizando.
