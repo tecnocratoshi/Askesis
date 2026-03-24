@@ -2,7 +2,7 @@
   // Shared base config. App/test projects extend this file.
   "compilerOptions": {
     "target": "es2020",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": ["dom", "dom.iterable", "esnext", "es2021.intl"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
