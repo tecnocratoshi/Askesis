@@ -264,7 +264,7 @@ export async function loadState(cloudState?: AppState): Promise<AppState | null>
         state.notificationsShown = [...(migrated.notificationsShown || [])];
         state.pending21DayHabitIds = [...(migrated.pending21DayHabitIds || [])];
         state.pendingConsolidationHabitIds = [...(migrated.pendingConsolidationHabitIds || [])];
-        state.hasOnboarded = migrated.hasOnboarded ?? true;
+        state.hasOnboarded = migrated.hasOnboarded ?? false;
         state.syncLogs = (migrated.syncLogs || []).map((log: any) => ({
             time: log.time,
             msg: log.msg,

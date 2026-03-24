@@ -23,7 +23,7 @@ describe('🔄 Migração de Schema (migration.ts)', () => {
             expect(result.monthlyLogs).toBeInstanceOf(Map);
             expect(result.monthlyLogs.size).toBe(0);
             expect(result.syncLogs).toEqual([]);
-            expect(result.hasOnboarded).toBe(true);
+            expect(result.hasOnboarded).toBe(false);
             expect(result.aiDailyCount).toBe(0);
             expect(result.lastAIContextHash).toBeNull();
         });

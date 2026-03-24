@@ -19,6 +19,7 @@ import { setupChartListeners } from './listeners/chart';
 import { getTodayUTCIso, resetTodayCache, createDebounced, logger } from './utils';
 import { state, getPersistableState, invalidateCachesForDateChange } from './state';
 import { pullRemoteChanges, syncStateWithCloud } from './services/cloud';
+import { saveState } from './services/persistence';
 import { checkAndAnalyzeDayContext } from './services/analysis';
 import { NETWORK_DEBOUNCE_MS, INTERACTION_DELAY_MS } from './constants';
 import { APP_EVENTS, CARD_EVENTS, emitDayChanged } from './events';
@@ -40,7 +41,12 @@ const _handleNetworkChange = createDebounced(() => {
 }, NETWORK_DEBOUNCE_MS);
 
 const _handleVisibilityChange = () => {
-    if (document.visibilityState !== 'visible') return;
+    // Aba a ficar oculta ou browser a fechar: gravar imediatamente para não perder
+    // dados que estejam pendentes no debounce de 800ms.
+    if (document.visibilityState === 'hidden') {
+        saveState(true, true);
+        return;
+    }
     if (isHandlingVisibility) return;
     isHandlingVisibility = true;
 
