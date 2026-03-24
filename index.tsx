@@ -28,7 +28,7 @@ import { initSync } from './listeners/sync';
 import { fetchStateFromCloud, syncStateWithCloud, setSyncStatus } from './services/cloud';
 import { hasLocalSyncKey, initAuth } from './services/api';
 import { updateAppBadge } from './services/badge';
-import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, clearPushPermissionState, isNativePromptActive, setNativePromptActive, triggerNotificationOnboarding, hasRequestedPushPermission } from './utils';
+import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, clearPushPermissionState, isNativePromptActive, setNativePromptActive, triggerNotificationOnboarding } from './utils';
 import { BOOT_RELOAD_DELAY_MS, BOOT_SYNC_TIMEOUT_MS } from './constants';
 import { t } from './i18n';
 
@@ -80,11 +80,8 @@ function setupInstallPromptCapture() {
 
     window.addEventListener('appinstalled', () => {
         deferredInstallPrompt = null;
-        // Instalação via menu do browser (sem usar o prompt customário):
-        // disparar onboarding de notificações se ainda não foi solicitado.
-        if (!hasRequestedPushPermission()) {
-            setTimeout(() => triggerNotificationOnboardingPrompt(), 1500);
-        }
+        // Instalação via menu do browser: disparar onboarding de notificações.
+        setTimeout(() => triggerNotificationOnboardingPrompt(), 1500);
     });
 }
 
@@ -107,12 +104,12 @@ function renderCriticalBootError(loader: HTMLElement) {
 }
 
 export function triggerNotificationOnboardingPrompt() {
-    if (hasRequestedPushPermission()) return;
     const currentPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
         ? (Notification as any).permission as string
         : 'default';
+    // Permissão já decidida pelo browser — não há nada a perguntar.
     if (currentPerm === 'denied') return;
-    if (getLocalPushOptIn() === true && currentPerm === 'granted') return;
+    if (currentPerm === 'granted' && getLocalPushOptIn() === true) return;
 
     showConfirmationModal(
         t('notificationOnboardingBody'),
@@ -184,7 +181,7 @@ function recommendInstallForNewUsers() {
             }
 
             // Após aceitar a instalação, perguntar sobre notificações.
-            if (outcome === 'accepted' && !hasRequestedPushPermission()) {
+            if (outcome === 'accepted') {
                 setTimeout(() => triggerNotificationOnboardingPrompt(), 1500);
             }
         },
@@ -251,7 +248,7 @@ async function loadInitialState() {
 function handleFirstTimeUser() {
     if (!state.hasOnboarded) {
         state.hasOnboarded = true;
-        saveState();
+        saveState(true); // imediato: evita race condition com o IDB a carregar
     }
 }
 
@@ -332,7 +329,16 @@ async function init(loader: HTMLElement | null) {
     handleFirstTimeUser();
     renderApp(); 
     setTimeout(() => recommendInstallForNewUsers(), 1200);
-    
+    // Prompt de notificações: independente da instalação.
+    // Delay maior para não colidir com o prompt de instalação.
+    // Só dispara se o app já estiver instalado como PWA (sem prompt de instalação)
+    // ou se o browser não suportar beforeinstallprompt.
+    setTimeout(() => {
+        if (isRunningAsInstalledPwa() || !deferredInstallPrompt) {
+            triggerNotificationOnboardingPrompt();
+        }
+    }, 3000);
+
     updateAppBadge();
     finalizeInit(loader);
     
