@@ -282,16 +282,20 @@ export function updateNotificationUI() {
     pushToOneSignal((OneSignal: OneSignalLike) => {
         const isPushEnabled = OneSignal.User.PushSubscription.optedIn;
         const permission = OneSignal.Notifications.permission;
-        // Chrome/Brave Android, Safari e outros: não sobrescrever localOptIn para false se a
-        // permissão nativa ainda é 'granted'. O OneSignal pode reportar optedIn=false enquanto
-        // a subscription assíncrona ainda está sendo finalizada.
         const nativePerm = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
-        if (isPushEnabled || nativePerm !== 'granted') {
-            setLocalPushOptIn(!!isPushEnabled);
+        const localOptIn = getLocalPushOptIn();
+        // Só atualiza localOptIn a partir do SDK quando o SDK confirma opt-in (isPushEnabled=true),
+        // ou quando a permissão nativa não está concedida (sem risco de race condition).
+        // Quando nativePerm='granted' e isPushEnabled=false, o SDK pode estar em race condition
+        // pós-optOut() — não sobrescrever um opt-out explícito (localOptIn=false) com true.
+        if (isPushEnabled) {
+            setLocalPushOptIn(true);
+        } else if (nativePerm !== 'granted') {
+            setLocalPushOptIn(false);
         }
-        // Usa o estado mais confiável: se o OneSignal já confirma optedIn, usa isso;
-        // senão, se a permissão nativa está concedida e o usuário optou, mantém ativo.
-        const effectiveEnabled = isPushEnabled || (nativePerm === 'granted' && getLocalPushOptIn() === true);
+        // effectiveEnabled: usa o SDK se já confirmou; caso contrário, confia no localOptIn
+        // apenas se o usuário explicitamente optou (localOptIn=true) e a permissão está concedida.
+        const effectiveEnabled = isPushEnabled || (nativePerm === 'granted' && localOptIn === true);
         if (ui.notificationToggle.checked !== !!effectiveEnabled) ui.notificationToggle.checked = !!effectiveEnabled;
         const isDenied = permission === 'denied';
         if (ui.notificationToggle.disabled !== isDenied) {

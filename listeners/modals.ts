@@ -204,7 +204,9 @@ const _handleNotificationToggleChange = () => {
                     navigator.serviceWorker.register('./sw.js').catch(() => {});
                 }
             } catch {
-                // Se falhar, mantém o estado atual (pode ter perdido conexão).
+                // Persiste opt-out mesmo em caso de falha do SDK (sem conexão, timeout, etc.)
+                // para que updateNotificationUI() não releia localOptIn=true e reative o toggle.
+                setLocalPushOptIn(false);
                 setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
             } finally {
                 ui.notificationToggle.disabled = false;
