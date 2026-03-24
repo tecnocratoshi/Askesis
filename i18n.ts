@@ -25,7 +25,7 @@ import { pushToOneSignal, logger } from './utils';
 import { LANG_LOAD_TIMEOUT_MS } from './constants';
 import { emitLanguageChanged } from './events';
 
-// INTERFACE ABSTRATA: Permite que o cache aceite tanto a classe nativa quanto o mock de fallback sem erros de tipo.
+// Structural interface: cache accepts both Intl.ListFormat and the safe fallback for old browsers.
 interface ListFormatter {
     format(list: Iterable<string>): string;
 }
@@ -209,8 +209,7 @@ function updateHotCache(langCode: string) {
     // 4. List Format (Arrays)
     if (!listFormatCache[langCode]) {
         try {
-            // @fix: Cast Intl to any to support ListFormat which might be missing in TS libs
-            listFormatCache[langCode] = new (Intl as any).ListFormat(langCode, { style: 'long', type: 'conjunction' });
+            listFormatCache[langCode] = new Intl.ListFormat(langCode, { style: 'long', type: 'conjunction' });
         } catch (e) {
             // ROBUSTEZ: Fallback seguro se a API não existir (Browser antigo).
             listFormatCache[langCode] = { 
