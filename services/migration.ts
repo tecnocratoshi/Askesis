@@ -56,7 +56,7 @@ export function migrateState(loadedState: any, targetVersion: number): AppState 
             notificationsShown: [], 
             pending21DayHabitIds: [], 
             pendingConsolidationHabitIds: [], 
-            hasOnboarded: true,
+            hasOnboarded: false,
             syncLogs: [],
             monthlyLogs: new Map(),
             aiDailyCount: 0,

@@ -394,6 +394,65 @@ export function isNativePromptActive(): boolean { return _isNativePromptActive; 
 export function setNativePromptActive(value: boolean): void { _isNativePromptActive = value; }
 
 /**
+ * Solicita permissão de notificação e completa a subscrição no OneSignal.
+ * Usado tanto pelo onboarding automático quanto pelo toggle manual — garante
+ * comportamento idêntico nos dois caminhos.
+ * Retorna true se a subscrição foi concluída com sucesso.
+ */
+export async function triggerNotificationOnboarding(): Promise<boolean> {
+    const currentPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
+        ? (Notification as any).permission as string
+        : 'default';
+
+    // Permissão já negada — não há o que fazer.
+    if (currentPerm === 'denied') return false;
+
+    try {
+        const oneSignal = await ensureOneSignalReady();
+
+        if (currentPerm === 'default') {
+            setNativePromptActive(true);
+            markPushPermissionRequested();
+            try {
+                await oneSignal.Notifications.requestPermission();
+            } finally {
+                setNativePromptActive(false);
+            }
+
+            // Fallback: se o SDK não resolveu, tenta o prompt nativo diretamente.
+            const permAfter = (typeof Notification !== 'undefined' && (Notification as any).permission)
+                ? (Notification as any).permission as string
+                : 'default';
+            if (permAfter === 'default' && typeof Notification !== 'undefined' && (Notification as any).requestPermission) {
+                setNativePromptActive(true);
+                try {
+                    await (Notification as any).requestPermission();
+                } finally {
+                    setNativePromptActive(false);
+                }
+            }
+        }
+
+        const resolvedPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
+            ? (Notification as any).permission as string
+            : currentPerm;
+
+        if (resolvedPerm !== 'granted') {
+            setLocalPushOptIn(false);
+            return false;
+        }
+
+        await oneSignal.User.PushSubscription.optIn();
+        setLocalPushOptIn(true);
+        return true;
+    } catch (e) {
+        logger.warn('[Push] triggerNotificationOnboarding failed:', e);
+        setLocalPushOptIn(false);
+        return false;
+    }
+}
+
+/**
  * Limpa todo o estado de push persistido no localStorage.
  * Usado para resetar estado stale após reinstalação do PWA (iOS Safari preserva
  * localStorage ao desinstalar, mas reseta Notification.permission para 'default').

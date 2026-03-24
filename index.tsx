@@ -28,7 +28,7 @@ import { initSync } from './listeners/sync';
 import { fetchStateFromCloud, syncStateWithCloud, setSyncStatus } from './services/cloud';
 import { hasLocalSyncKey, initAuth } from './services/api';
 import { updateAppBadge } from './services/badge';
-import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, clearPushPermissionState, isNativePromptActive, setNativePromptActive } from './utils';
+import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, clearPushPermissionState, isNativePromptActive, setNativePromptActive, triggerNotificationOnboarding, hasRequestedPushPermission } from './utils';
 import { BOOT_RELOAD_DELAY_MS, BOOT_SYNC_TIMEOUT_MS } from './constants';
 import { t } from './i18n';
 
@@ -80,6 +80,11 @@ function setupInstallPromptCapture() {
 
     window.addEventListener('appinstalled', () => {
         deferredInstallPrompt = null;
+        // Instalação via menu do browser (sem usar o prompt customário):
+        // disparar onboarding de notificações se ainda não foi solicitado.
+        if (!hasRequestedPushPermission()) {
+            setTimeout(() => triggerNotificationOnboardingPrompt(), 1500);
+        }
     });
 }
 
@@ -101,8 +106,28 @@ function renderCriticalBootError(loader: HTMLElement) {
     loader.replaceChildren(wrapper);
 }
 
-function recommendInstallForNewUsers(isFirstTimeUser: boolean) {
-    if (!isFirstTimeUser) return;
+export function triggerNotificationOnboardingPrompt() {
+    if (hasRequestedPushPermission()) return;
+    const currentPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
+        ? (Notification as any).permission as string
+        : 'default';
+    if (currentPerm === 'denied') return;
+    if (getLocalPushOptIn() === true && currentPerm === 'granted') return;
+
+    showConfirmationModal(
+        t('notificationOnboardingBody'),
+        async () => {
+            await triggerNotificationOnboarding();
+        },
+        {
+            title: t('notificationOnboardingTitle'),
+            confirmText: t('notificationOnboardingConfirm'),
+            cancelText: t('installPromptLater')
+        }
+    );
+}
+
+function recommendInstallForNewUsers() {
     if (isRunningAsInstalledPwa()) return;
 
     const isSafariFamily = (() => {
@@ -146,14 +171,21 @@ function recommendInstallForNewUsers(isFirstTimeUser: boolean) {
             if (isNativePromptActive()) return;
 
             setNativePromptActive(true);
+            let outcome: string = 'dismissed';
             try {
                 await promptEvent.prompt();
-                await promptEvent.userChoice;
+                const choice = await promptEvent.userChoice;
+                outcome = choice.outcome;
                 deferredInstallPrompt = null;
             } catch (error) {
                 logger.warn('Install prompt failed', error);
             } finally {
                 setNativePromptActive(false);
+            }
+
+            // Após aceitar a instalação, perguntar sobre notificações.
+            if (outcome === 'accepted' && !hasRequestedPushPermission()) {
+                setTimeout(() => triggerNotificationOnboardingPrompt(), 1500);
             }
         },
         {
@@ -296,12 +328,10 @@ async function init(loader: HTMLElement | null) {
     await Promise.all([initI18n(), updateUIText()]);
 
     await loadInitialState();
-    const isFirstTimeUser = !state.hasOnboarded;
-
     setupAppListeners();
     handleFirstTimeUser();
     renderApp(); 
-    setTimeout(() => recommendInstallForNewUsers(isFirstTimeUser), 1200);
+    setTimeout(() => recommendInstallForNewUsers(), 1200);
     
     updateAppBadge();
     finalizeInit(loader);

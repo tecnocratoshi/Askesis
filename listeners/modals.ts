@@ -58,7 +58,7 @@ import {
 } from '../services/habitActions';
 import { t, setLanguage } from '../i18n';
 import { setupReelRotary } from '../render/rotary';
-import { simpleMarkdownToHTML, ensureOneSignalReady, setLocalPushOptIn, getContrastColor, addDays, parseUTCIsoDate, toUTCIsoDateString, triggerHaptic, logger, escapeHTML, sanitizeText, getTodayUTCIso, isNativePromptActive, setNativePromptActive, markPushPermissionRequested } from '../utils';
+import { simpleMarkdownToHTML, ensureOneSignalReady, setLocalPushOptIn, getContrastColor, addDays, parseUTCIsoDate, toUTCIsoDateString, triggerHaptic, logger, escapeHTML, sanitizeText, getTodayUTCIso, triggerNotificationOnboarding } from '../utils';
 import { setTextContent } from '../render/dom';
 
 // --- STATIC HELPERS ---
@@ -199,52 +199,14 @@ const _handleNotificationToggleChange = async () => {
             ui.notificationToggle.disabled = true;
             setTextContent(ui.notificationStatusDesc, t('notificationChangePending'));
 
-            const oneSignal = await ensureOneSignalReady();
-            const currentPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
-                ? (Notification as any).permission
-                : 'default';
+            const granted = await triggerNotificationOnboarding();
 
-            if (currentPerm === 'default') {
-                logger.info('[Push] Toggle ON: requesting permission through OneSignal SDK...');
-                setNativePromptActive(true);
-                markPushPermissionRequested();
-                try {
-                    await oneSignal.Notifications.requestPermission();
-                } finally {
-                    setNativePromptActive(false);
-                }
-            }
-
-            const permissionAfterSdkRequest = (typeof Notification !== 'undefined' && (Notification as any).permission)
-                ? (Notification as any).permission
-                : currentPerm;
-
-            if (permissionAfterSdkRequest === 'default' && typeof Notification !== 'undefined' && (Notification as any).requestPermission) {
-                logger.info('[Push] Toggle ON: OneSignal SDK did not resolve permission, falling back to native prompt...');
-                setNativePromptActive(true);
-                try {
-                    await (Notification as any).requestPermission();
-                } finally {
-                    setNativePromptActive(false);
-                }
-            }
-
-            const resolvedPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)
-                ? (Notification as any).permission
-                : currentPerm;
-
-            if (resolvedPerm !== 'granted') {
+            if (!granted) {
                 ui.notificationToggle.checked = false;
-                setLocalPushOptIn(false);
                 setTextContent(ui.notificationStatusDesc, t('notificationStatusOptedOut'));
                 return;
             }
 
-            logger.info('[Push] Toggle ON: permission granted, calling optIn()...');
-            await oneSignal.User.PushSubscription.optIn();
-            logger.info('[Push] Toggle ON: optIn() completed. optedIn=' + !!oneSignal.User.PushSubscription.optedIn);
-
-            setLocalPushOptIn(true);
             ui.notificationToggle.checked = true;
             setTextContent(ui.notificationStatusDesc, t('notificationStatusEnabled'));
         } else {
