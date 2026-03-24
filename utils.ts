@@ -386,6 +386,13 @@ export function markPushPermissionRequested() {
     } catch {}
 }
 
+// Serializa prompts nativos do browser (permissão + instalação).
+// O browser rejeita silenciosamente um segundo prompt enquanto outro está aberto,
+// então garantimos que apenas um seja exibido por vez.
+let _isNativePromptActive = false;
+export function isNativePromptActive(): boolean { return _isNativePromptActive; }
+export function setNativePromptActive(value: boolean): void { _isNativePromptActive = value; }
+
 /**
  * Limpa todo o estado de push persistido no localStorage.
  * Usado para resetar estado stale após reinstalação do PWA (iOS Safari preserva

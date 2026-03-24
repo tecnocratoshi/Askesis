@@ -58,7 +58,7 @@ import {
 } from '../services/habitActions';
 import { t, setLanguage } from '../i18n';
 import { setupReelRotary } from '../render/rotary';
-import { simpleMarkdownToHTML, ensureOneSignalReady, setLocalPushOptIn, getContrastColor, addDays, parseUTCIsoDate, toUTCIsoDateString, triggerHaptic, logger, escapeHTML, sanitizeText, getTodayUTCIso } from '../utils';
+import { simpleMarkdownToHTML, ensureOneSignalReady, setLocalPushOptIn, getContrastColor, addDays, parseUTCIsoDate, toUTCIsoDateString, triggerHaptic, logger, escapeHTML, sanitizeText, getTodayUTCIso, isNativePromptActive, setNativePromptActive, markPushPermissionRequested } from '../utils';
 import { setTextContent } from '../render/dom';
 
 // --- STATIC HELPERS ---
@@ -206,7 +206,13 @@ const _handleNotificationToggleChange = async () => {
 
             if (currentPerm === 'default') {
                 logger.info('[Push] Toggle ON: requesting permission through OneSignal SDK...');
-                await oneSignal.Notifications.requestPermission();
+                setNativePromptActive(true);
+                markPushPermissionRequested();
+                try {
+                    await oneSignal.Notifications.requestPermission();
+                } finally {
+                    setNativePromptActive(false);
+                }
             }
 
             const permissionAfterSdkRequest = (typeof Notification !== 'undefined' && (Notification as any).permission)
@@ -215,7 +221,12 @@ const _handleNotificationToggleChange = async () => {
 
             if (permissionAfterSdkRequest === 'default' && typeof Notification !== 'undefined' && (Notification as any).requestPermission) {
                 logger.info('[Push] Toggle ON: OneSignal SDK did not resolve permission, falling back to native prompt...');
-                await (Notification as any).requestPermission();
+                setNativePromptActive(true);
+                try {
+                    await (Notification as any).requestPermission();
+                } finally {
+                    setNativePromptActive(false);
+                }
             }
 
             const resolvedPerm = (typeof Notification !== 'undefined' && (Notification as any).permission)

@@ -28,7 +28,7 @@ import { initSync } from './listeners/sync';
 import { fetchStateFromCloud, syncStateWithCloud, setSyncStatus } from './services/cloud';
 import { hasLocalSyncKey, initAuth } from './services/api';
 import { updateAppBadge } from './services/badge';
-import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, clearPushPermissionState } from './utils';
+import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, clearPushPermissionState, isNativePromptActive, setNativePromptActive } from './utils';
 import { BOOT_RELOAD_DELAY_MS, BOOT_SYNC_TIMEOUT_MS } from './constants';
 import { t } from './i18n';
 
@@ -101,7 +101,7 @@ function renderCriticalBootError(loader: HTMLElement) {
     loader.replaceChildren(wrapper);
 }
 
-function recommendInstallForNewUsers(isFirstTimeUser: boolean) {
+async function recommendInstallForNewUsers(isFirstTimeUser: boolean) {
     if (!isFirstTimeUser) return;
     if (isRunningAsInstalledPwa()) return;
 
@@ -131,31 +131,23 @@ function recommendInstallForNewUsers(isFirstTimeUser: boolean) {
         return;
     }
 
-    // Chrome/Edge/Brave/Opera (Android + Desktop): usa o deferredInstallPrompt capturado.
-    // A checagem anterior de browserSupportsNativeInstallPrompt foi removida pois tornava
-    // o showConfirmationModal abaixo código morto — nunca alcançado nesses navegadores.
+    // Chrome/Edge/Brave/Opera (Android + Desktop): o browser já exibe o prompt nativo.
+    // Não exibimos modal próprio para evitar duplicidade — chamamos prompt() diretamente.
+    // Aguarda se outro prompt nativo (ex: permissão de notificação) estiver aberto,
+    // pois o browser rejeita silenciosamente prompts concorrentes.
     if (!deferredInstallPrompt) return;
+    if (isNativePromptActive()) return;
 
-    showConfirmationModal(
-        t('installPromptBody'),
-        async () => {
-            const promptEvent = deferredInstallPrompt;
-            if (!promptEvent) return;
-
-            try {
-                await promptEvent.prompt();
-                await promptEvent.userChoice;
-                deferredInstallPrompt = null;
-            } catch (error) {
-                logger.warn('Install prompt failed', error);
-            }
-        },
-        {
-            title: t('installPromptTitle'),
-            confirmText: t('installPromptConfirm'),
-            cancelText: t('installPromptLater')
-        }
-    );
+    setNativePromptActive(true);
+    try {
+        await deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+    } catch (error) {
+        logger.warn('Install prompt failed', error);
+    } finally {
+        setNativePromptActive(false);
+    }
 }
 
 let isInitializing = false;
