@@ -55,6 +55,8 @@
     );
     pointer-events: none;
     z-index: var(--z-index-sticky);
+    opacity: 0;
+    transition: opacity var(--transition-duration-fast) ease;
 }
 
 #habit-container::after {
@@ -75,6 +77,16 @@
     );
     pointer-events: none;
     z-index: var(--z-index-sticky);
+    opacity: 0;
+    transition: opacity var(--transition-duration-fast) ease;
+}
+
+#habit-container.show-edge-fade-top::before {
+    opacity: 1;
+}
+
+#habit-container.show-edge-fade-bottom::after {
+    opacity: 1;
 }
 
 /* 
