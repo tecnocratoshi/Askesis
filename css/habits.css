@@ -282,6 +282,16 @@ body:not(.is-dragging-active) .empty-group-placeholder.show-smart-placeholder .p
     transition: transform 0.2s cubic-bezier(0.2, 0, 0.2, 1);
 }
 
+.habit-card.habit-card-touching-quote-edge::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 20px;
+    background: linear-gradient(to bottom, var(--bg-color) 0%, rgba(0, 0, 0, 0) 100%);
+    pointer-events: none;
+    z-index: var(--z-index-indicator);
+}
+
 /* REFACTOR [2025-06-09]: A classe .is-pressing agora serve apenas para feedback visual.
    UPDATE: Removido scale para evitar encolhimento indesejado. */
 .habit-card.is-pressing {
