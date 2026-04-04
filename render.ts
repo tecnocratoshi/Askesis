@@ -26,7 +26,6 @@ import { renderFullCalendar } from './render/calendarGrid';
 import { renderHabits } from './render/habits';
 import { renderChart } from './render/chart';
 import { setupManageModal, refreshEditModalUI, renderLanguageFilter, renderIconPicker, renderFrequencyOptions, openModal, showConfirmationModal } from './render/modals';
-import { CSS_CLASSES, DOM_SELECTORS } from './render/constants';
 
 // Re-exporta tudo para manter compatibilidade
 export * from './render/dom';
@@ -237,8 +236,6 @@ export function renderApp() {
     _updateHeaderTitle();
     renderCalendar();
     renderHabits();
-    _setupHabitEdgeFade();
-    _scheduleHabitEdgeFadeUpdate();
 
     if ('scheduler' in window && window.scheduler) {
         window.scheduler.postTask(() => {
@@ -330,51 +327,6 @@ export function renderAINotificationState() {
 
 let _quoteCollapseListener: ((e: Event) => void) | null = null;
 let _quoteCollapseScrollHandler: (() => void) | null = null;
-let _habitEdgeFadeBound = false;
-let _habitEdgeFadeFramePending = false;
-
-function _applyHabitEdgeFadeState() {
-    const container = ui.habitContainer;
-    if (!container?.isConnected) return;
-
-    const boundaryY = container.getBoundingClientRect().top + 1;
-    const cards = Array.from(container.querySelectorAll<HTMLElement>(DOM_SELECTORS.HABIT_CARD));
-    let touchingCard: HTMLElement | null = null;
-    let lowestVisibleBottom = -Infinity;
-
-    for (const card of cards) {
-        const rect = card.getBoundingClientRect();
-        if (rect.height <= 0) continue;
-
-        const touchesQuoteBoundary = rect.top <= boundaryY && rect.bottom > boundaryY;
-        if (touchesQuoteBoundary && rect.bottom > lowestVisibleBottom) {
-            touchingCard = card;
-            lowestVisibleBottom = rect.bottom;
-        }
-    }
-
-    for (const card of cards) {
-        card.classList.toggle(CSS_CLASSES.HABIT_CARD_TOUCHING_QUOTE_EDGE, card === touchingCard);
-    }
-}
-
-function _scheduleHabitEdgeFadeUpdate() {
-    if (_habitEdgeFadeFramePending) return;
-    _habitEdgeFadeFramePending = true;
-
-    requestAnimationFrame(() => {
-        _habitEdgeFadeFramePending = false;
-        _applyHabitEdgeFadeState();
-    });
-}
-
-function _setupHabitEdgeFade() {
-    if (_habitEdgeFadeBound) return;
-    _habitEdgeFadeBound = true;
-
-    ui.habitContainer.addEventListener('scroll', _scheduleHabitEdgeFadeUpdate, { passive: true });
-    window.addEventListener('resize', _scheduleHabitEdgeFadeUpdate, { passive: true });
-}
 
 const _collapseExpandedQuote = () => {
     if (ui.stoicQuoteDisplay.querySelector('.quote-expanded')) {
@@ -440,7 +392,6 @@ export function renderStoicQuote() {
         originalSpan.textContent = `"${selectedQuote.original_text[lang]}" — ${t(selectedQuote.author)}`;
         container.appendChild(originalSpan);
         _setupQuoteAutoCollapse();
-        _scheduleHabitEdgeFadeUpdate();
     };
 
     container.appendChild(adaptationSpan);
@@ -454,7 +405,6 @@ export function renderStoicQuote() {
         container.style.justifyContent = isSingleLine ? 'flex-end' : 'flex-start';
         container.style.textAlign = isSingleLine ? 'right' : 'left';
         container.classList.add('visible');
-        _scheduleHabitEdgeFadeUpdate();
     });
 }
 

@@ -26,7 +26,6 @@
 export const CSS_CLASSES = {
     // Habit Card Components
     HABIT_CARD: 'habit-card',
-    HABIT_CARD_TOUCHING_QUOTE_EDGE: 'habit-card-touching-quote-edge',
     HABIT_CONTENT_WRAPPER: 'habit-content-wrapper',
     HABIT_DETAILS: 'habit-details',
     HABIT_GOAL_CONTROLS: 'habit-goal-controls',
