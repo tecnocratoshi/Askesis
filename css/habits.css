@@ -8,6 +8,8 @@
     isolation: isolate;
     --edge-fade-solid: 4px;
     --edge-fade-depth: 12px;
+    --edge-fade-bottom-solid: 5px;
+    --edge-fade-bottom-depth: 18px;
     --edge-fade-bleed: 5px;
     
     /* SMART LAYOUT: 
@@ -69,13 +71,13 @@
     display: block;
     flex: 0 0 auto;
     align-self: stretch;
-    margin-top: calc(-1 * (var(--edge-fade-solid) + var(--edge-fade-depth)));
+    margin-top: calc(-1 * (var(--edge-fade-bottom-solid) + var(--edge-fade-bottom-depth)));
     margin-bottom: calc(-1 * var(--space-sm) - var(--edge-fade-bleed));
-    height: calc(var(--edge-fade-solid) + var(--edge-fade-depth));
+    height: calc(var(--edge-fade-bottom-solid) + var(--edge-fade-bottom-depth));
     background: linear-gradient(
         to top,
         var(--bg-color) 0,
-        var(--bg-color) var(--edge-fade-solid),
+        var(--bg-color) var(--edge-fade-bottom-solid),
         rgba(0, 0, 0, 0) 100%
     );
     pointer-events: none;
