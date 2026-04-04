@@ -22,7 +22,7 @@
     margin-inline: var(--space-lg); 
     
     /* Margem inferior para não colar na borda da tela */
-    margin-bottom: var(--space-sm);
+    margin-bottom: var(--space-md);
     
     /* Estilos visuais normais */
     z-index: var(--z-index-footer);
