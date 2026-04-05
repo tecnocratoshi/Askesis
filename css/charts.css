@@ -120,9 +120,9 @@
 .chart-container.is-empty .chart-empty-state {
     display: flex;
 }
-.chart-wrapper { 
-    position: relative; 
-    height: 75px; 
+.chart-header {
+    display: flex;
+    align-items: center;
     touch-action: pan-y; 
     @media (min-width: 481px) {
         .chart-header { flex-wrap: nowrap; }
