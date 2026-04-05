@@ -41,7 +41,7 @@
 
 .chart-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start; /* top-align so right column stays on first line */
     justify-content: space-between;
     gap: var(--space-lg);
     flex-wrap: wrap;
@@ -50,6 +50,7 @@
     pointer-events: none;
     text-shadow: 0 1px 2px var(--bg-color);
     margin-top: -6px;
+    user-select: none;
 }
 
 .chart-header > .app-subtitle {
@@ -68,7 +69,6 @@
     align-items: center;
     justify-content: flex-end;
     gap: var(--space-sm);
-    margin-bottom: 8px;
 }
 
 .app-subtitle, .chart-title {
@@ -87,13 +87,12 @@
     display: flex;
     align-items: baseline;
     gap: 30px;
-    margin-bottom: 8px; /* Espaço extra entre título (%/logo) e o gráfico */
 }
 .app-subtitle {
     font-size: 13px;
     font-style: italic;
     color: var(--text-secondary);
-    margin-bottom: 13px; /* Aumentado para criar mais espaçamento vertical */
+    margin: 0; /* remove extra vertical gap so right column aligns on same line */
     line-height: 1.4;
 }
 
@@ -120,18 +119,10 @@
 .chart-container.is-empty .chart-empty-state {
     display: flex;
 }
-.chart-header {
-    display: flex;
-    align-items: center;
+.chart-wrapper { 
+    position: relative; 
+    height: 75px; 
     touch-action: pan-y; 
-    @media (min-width: 481px) {
-        .chart-header { flex-wrap: nowrap; }
-        .chart-header > .app-subtitle,
-        .chart-header > .chart-title-row {
-            flex: 0 0 50%;
-            max-width: 50%;
-        }
-    }
     user-select: none; 
 }
 .chart-svg { 
