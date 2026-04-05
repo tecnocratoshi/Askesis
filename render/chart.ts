@@ -326,17 +326,20 @@ export function renderChart() {
         const isEmpty = chartInteractionState.lastChartData.length < 2 || chartInteractionState.lastChartData.every(d => d.scheduledCount === 0);
         ui.chartContainer.classList.toggle('is-empty', isEmpty);
 
+        // Mostrar ambas frases à esquerda: título do gráfico e subtítulo
         if (ui.chart.title) {
-            const newTitle = t('appName');
-            setTrustedHtmlFragment(ui.chart.title, newTitle);
+            const newTitle = t('chartSubtitleProgress');
+            if (ui.chart.title.textContent !== newTitle) setTextContent(ui.chart.title, newTitle);
         }
         if (ui.chart.subtitle) {
-            // Mostrar as duas frases na mesma linha (lado esquerdo):
-            // "Progresso Composto / Aja até ser..." — com separador estilizado.
-            const leftPrimary = t('chartSubtitleProgress');
-            const leftSecondary = t('appSubtitle');
-            const subtitleHtml = `<span class="subtitle-primary">${leftPrimary}</span><span class="subtitle-sep">/</span><span class="subtitle-secondary">${leftSecondary}</span>`;
-            setTrustedHtmlFragment(ui.chart.subtitle, subtitleHtml);
+            const newSubtitle = t('appSubtitle');
+            if (ui.chart.subtitle.textContent !== newSubtitle) ui.chart.subtitle.textContent = newSubtitle;
+        }
+
+        // Preencher o logo/appName no lado direito (HTML com <strong>)
+        if (ui.chart.logo) {
+            const newLogoHtml = t('appName');
+            setTrustedHtmlFragment(ui.chart.logo, newLogoHtml);
         }
         
         if (isEmpty) {
