@@ -40,9 +40,12 @@
 }
 
 .chart-header {
+    /* Layout horizontal: frases à esquerda, logo+% à direita */
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
     margin-bottom: 0;
     position: relative;
     /* LAYER MID: Acima da linha do gráfico (10), abaixo do tooltip (60) */
@@ -64,15 +67,21 @@
     display: flex;
     align-items: baseline;
     gap: 30px;
-    margin-bottom: 8px; /* Espaço extra entre título (%/logo) e o gráfico */
+    margin-bottom: 0;
 }
 .app-subtitle {
     font-size: 13px;
     font-style: italic;
     color: var(--text-secondary);
-    margin-bottom: 13px; /* Aumentado para criar mais espaçamento vertical */
+    margin-bottom: 0;
     line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Espaçamento entre as duas frases à esquerda */
+    white-space: nowrap;
 }
+
+.subtitle-sep { color: var(--text-tertiary); margin: 0 8px; }
 
 /* TYPOGRAPHY TWEAK [2025-05-02]: Reduz fonte para 12px em mobile */
 @media (max-width: 480px) {
@@ -93,6 +102,15 @@
     position: relative;
     /* Z-Index removido (auto) para permitir o entrelaçamento de camadas (SVG < Header < Tooltip) */
     z-index: auto;
+}
+
+@media (max-width: 480px) {
+    .chart-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-sm);
+    }
+    .app-subtitle { white-space: normal; margin-bottom: 6px; }
 }
 .chart-container.is-empty .chart-empty-state {
     display: flex;
