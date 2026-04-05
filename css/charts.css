@@ -41,10 +41,10 @@
 
 .chart-header {
     display: flex;
-    align-items: flex-start; /* top-align so right column stays on first line */
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-lg);
-    flex-wrap: wrap;
+    flex-wrap: nowrap; /* keep left and right parts on the same line */
     margin-bottom: 0;
     z-index: 20;
     pointer-events: none;
@@ -54,16 +54,14 @@
 }
 
 .chart-header > .app-subtitle {
-    flex: 0 0 50%;
-    max-width: 50%;
-    min-width: 0; /* allow the text to wrap instead of overflowing */
-    box-sizing: border-box;
+    flex: 1 1 0%;
+    min-width: 0; /* allow proper truncation/wrapping */
+    margin: 0;
+    overflow-wrap: break-word;
 }
 
 .chart-header > .chart-title-row {
-    flex: 0 0 50%;
-    max-width: 50%;
-    min-width: 0;
+    flex: 0 0 auto;
     box-sizing: border-box;
     display: flex;
     align-items: center;
@@ -81,6 +79,7 @@
     font-size: 18px;
     font-weight: 700;
     line-height: 1.2;
+    margin: 0;
 }
 
 .chart-title-row {
@@ -199,6 +198,7 @@
 }
 
 @media (max-width: 480px) {
+    .chart-header { flex-wrap: wrap; }
     .chart-header > .app-subtitle,
     .chart-header > .chart-title-row {
         width: 100%;
