@@ -18,6 +18,7 @@ import { emitRenderApp } from '../events';
 const DB_NAME = 'AskesisDB', DB_VERSION = 1, STORE_NAME = 'app_state';
 const STATE_JSON_KEY = 'askesis_core_json';
 const STATE_BINARY_KEY = 'askesis_logs_binary';
+const STATE_JSON_BACKUP_KEY = 'askesis_core_json_backup';
 
 const HAS_INDEXED_DB = typeof indexedDB !== 'undefined' && typeof indexedDB.open === 'function';
 const IS_TEST_ENV = (() => {
@@ -61,6 +62,52 @@ function getDB(): Promise<IDBDatabase> {
         });
     }
     return dbPromise;
+}
+
+async function createBackupSnapshot(stateObj: AppState): Promise<void> {
+    if (!HAS_INDEXED_DB) return;
+    try {
+        const db = await getDB();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).put(stateObj, STATE_JSON_BACKUP_KEY);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        logger.warn('[Persistence] createBackupSnapshot failed', e);
+    }
+}
+
+async function restoreBackupSnapshot(): Promise<AppState | null> {
+    if (!HAS_INDEXED_DB) return null;
+    try {
+        const db = await getDB();
+        return await new Promise<AppState | null>((resolve) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const req = tx.objectStore(STORE_NAME).get(STATE_JSON_BACKUP_KEY);
+            tx.oncomplete = () => resolve(req.result || null);
+            tx.onerror = () => resolve(null);
+        });
+    } catch (e) {
+        logger.warn('[Persistence] restoreBackupSnapshot failed', e);
+        return null;
+    }
+}
+
+async function clearBackupSnapshot(): Promise<void> {
+    if (!HAS_INDEXED_DB) return;
+    try {
+        const db = await getDB();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).delete(STATE_JSON_BACKUP_KEY);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        logger.warn('[Persistence] clearBackupSnapshot failed', e);
+    }
 }
 
 /**
@@ -239,10 +286,26 @@ export async function loadState(cloudState?: AppState): Promise<AppState | null>
         }
 
         // 3. Migrate State (Handles Schema Upgrades & Bitmask Expansion)
-        let migrated = migrateState(mainState, APP_VERSION);
+        // Create a backup snapshot before running migrations so we can recover on failure.
+        await createBackupSnapshot(mainState);
+        let migrated: AppState | null = null;
+        try {
+            migrated = migrateState(mainState, APP_VERSION);
+        } catch (e) {
+            logger.error("[Persistence] Migration failed, attempting to restore backup", e);
+            const restored = await restoreBackupSnapshot();
+            if (restored) {
+                migrated = restored;
+            } else {
+                // If restore is not available, rethrow so caller can handle.
+                throw e;
+            }
+        } finally {
+            await clearBackupSnapshot();
+        }
         
         // 4. Hydrate Result into Global State
-        state.monthlyLogs = migrated.monthlyLogs;
+        state.monthlyLogs = migrated!.monthlyLogs;
         // CRITICAL: Reset Lazy Sharding cache whenever state is replaced from storage/cloud.
         HabitService.resetCache();
         

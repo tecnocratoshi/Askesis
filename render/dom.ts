@@ -84,7 +84,9 @@ export function setTrustedHtmlFragment(target: HTMLElement | null, html: string)
         return;
     }
 
-    const fragment = document.createRange().createContextualFragment(normalized);
+    // Use centralized sanitizer to avoid unsafe insertion via createContextualFragment
+    // sanitizeHtmlToFragment removes disallowed tags/attributes before returning a DocumentFragment
+    const fragment = sanitizeHtmlToFragment(normalized);
     target.replaceChildren(fragment);
     target.setAttribute('data-rendered-html', normalized);
 }

@@ -137,7 +137,9 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}, incl
             // O servidor usa o hash para encontrar o registro no KV/Redis
             headers.set('X-Sync-Key-Hash', hash);
         } else {
-            throw new Error("Sync Key missing or environment insecure (No Crypto API).");
+            // Degraded mode: SubtleCrypto may be absent or digest failed. Proceed without hash
+            // and let the server respond; calling code should handle 401/unauthorized.
+            logWarn('Sync Key hash unavailable; proceeding in degraded mode (server may reject unauthenticated requests).');
         }
     }
 
