@@ -11,6 +11,7 @@
 
 export interface UIElements {
     appContainer: HTMLElement;
+    appHeader: HTMLElement;
     calendarStrip: HTMLElement;
     headerTitle: HTMLElement;
     headerTitleDesktop: HTMLElement;
@@ -165,6 +166,7 @@ function defineLazy(target: any, prop: string, selector: string, cache: Record<s
 export const ui = {} as UIElements;
 
 defineLazy(ui, 'appContainer', '.app-container', uiCache);
+defineLazy(ui, 'appHeader', '.app-header', uiCache);
 defineLazy(ui, 'calendarStrip', '#calendar-strip', uiCache);
 defineLazy(ui, 'headerTitle', '#header-title', uiCache);
 defineLazy(ui, 'headerTitleDesktop', '#header-title .header-title-desktop', uiCache);

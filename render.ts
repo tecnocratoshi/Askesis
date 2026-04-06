@@ -120,6 +120,8 @@ function _updateHeaderTitle() {
     ui.navArrowPast.classList.toggle('hidden', !(selected < todayISO));
     ui.navArrowFuture.classList.toggle('hidden', !(selected > todayISO));
 
+    ui.appHeader.classList.toggle('date-selected', selected <= todayISO);
+
     _lastTitleDate = selected;
     _lastTitleLang = state.activeLanguageCode;
 }
