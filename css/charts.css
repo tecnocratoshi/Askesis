@@ -88,6 +88,7 @@
     display: flex;
     align-items: baseline;
     gap: 30px;
+    white-space: nowrap;
 }
 .app-subtitle {
     font-size: 13px;
@@ -262,5 +263,5 @@
 .chart-evolution-indicator.negative { 
     color: var(--color-red);
 }
-.chart-evolution-indicator.positive::before { content: '▲ '; }
-.chart-evolution-indicator.negative::before { content: '▼ '; }
+.chart-evolution-indicator.positive::before { content: ''; }
+.chart-evolution-indicator.negative::before { content: ''; }
