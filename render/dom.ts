@@ -12,7 +12,8 @@ import { t } from '../i18n';
 import createDOMPurify from 'dompurify';
 
 // Create a DOMPurify instance bound to the current window/document.
-const DOMPurify = createDOMPurify(typeof window !== 'undefined' ? (window as unknown as Window) : (globalThis as unknown as Window));
+// Cast to `any` to satisfy DOMPurify's WindowLike typings across environments.
+const DOMPurify = createDOMPurify((typeof window !== 'undefined' ? window : globalThis) as any);
 
 /**
  * OTIMIZAÇÃO DE PERFORMANCE: Helper para atualizar texto do DOM.
