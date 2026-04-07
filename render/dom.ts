@@ -9,6 +9,10 @@
  */
 
 import { t } from '../i18n';
+import createDOMPurify from 'dompurify';
+
+// Create a DOMPurify instance bound to the current window/document.
+const DOMPurify = createDOMPurify(typeof window !== 'undefined' ? (window as unknown as Window) : (globalThis as unknown as Window));
 
 /**
  * OTIMIZAÇÃO DE PERFORMANCE: Helper para atualizar texto do DOM.
@@ -96,20 +100,27 @@ export function setTrustedHtmlFragment(target: HTMLElement | null, html: string)
  * Bloqueia: script, iframe, object, embed, link, meta, style, handlers on*, javascript: hrefs.
  */
 export function sanitizeHtmlToFragment(html: string): DocumentFragment {
+    // Use DOMPurify to produce a safe HTML string, then parse into a DocumentFragment.
+    const allowedTags = ['a','b','i','em','strong','p','ul','ol','li','br','span','div','img','svg','path','g'];
+    const allowedAttrs = ['href','src','alt','title','class','id','width','height','viewBox','xmlns'];
+
+    const clean = DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: allowedTags,
+        ALLOWED_ATTR: allowedAttrs,
+        // prevent returning non-string structures in certain environments
+        RETURN_TRUSTED_TYPE: false,
+    }) as string;
+
     const template = document.createElement('template');
-    template.innerHTML = html;
+    template.innerHTML = clean;
 
-    const blockedTags = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'style'];
-    for (const tag of blockedTags) {
-        template.content.querySelectorAll(tag).forEach(node => node.remove());
-    }
-
+    // Extra hardening: garantir que qualquer atributo 'on*' e href/src javascript: sejam removidos
     const elements = template.content.querySelectorAll('*');
     for (const el of elements) {
         const attrs = Array.from(el.attributes);
         for (const attr of attrs) {
             const attrName = attr.name.toLowerCase();
-            const attrValue = attr.value.trim().toLowerCase();
+            const attrValue = (attr.value || '').trim().toLowerCase();
             if (attrName.startsWith('on')) {
                 el.removeAttribute(attr.name);
                 continue;

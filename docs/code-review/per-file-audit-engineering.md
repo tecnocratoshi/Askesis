@@ -13,7 +13,7 @@ Metodologia: li o arquivo `docs/code-review/per-file-audit.md`, extraí os itens
 
 ---
 
-**1) Classificação rápida (engenharia vs não-engenharia)**
+## 1) Classificação rápida (engenharia vs não-engenharia)
 
 - Engenharia (actionable): XSS/sanitização, persistência/migrations, dataMerge (merge.ts), crypto/sync key handling, service worker cache lifecycle, IA -> output sanitization/format, performance do renderer, integração de guardrails no CI, testes property/integration.
 - Documentação / Organização: READMEs, ADRs, imagens/assets, maturity assessment, pequenos scripts de dev (dev-api-mock). Esses itens exigem manutenção/documentação, não alteração de runtime crítico.
@@ -22,7 +22,7 @@ Observação: alguns arquivos já têm mitigations implementadas (ex.: `sw.js` p
 
 ---
 
-**2) O que falta para o relatório atingir o "sweet spot"**
+## 2) O que falta para o relatório atingir o "sweet spot"
 
 - Transformar cada recomendação de alto nível em um CR com: arquivo(s) alvo, resumo, justificativa, passos mínimos, pseudodiff, testes a adicionar/alterar, critérios de aceite (pass/fail), métricas de sucesso, risco e rollback.
 - Indicar proprietários ou squads responsáveis (placeholder: `owner: "team/backend|team/frontend"`).
@@ -32,7 +32,7 @@ Observação: alguns arquivos já têm mitigations implementadas (ex.: `sw.js` p
 
 ---
 
-**3) Recomendações detalhadas (Change Requests)**
+## 3) Recomendações detalhadas (Change Requests)
 
 Cada CR abaixo foi escrita para ser imediatamente consumível por uma AI especializada — contém `id`, `summary`, `justification`, `files`, `pseudodiff_hint`, `tests`, `acceptance`, `metrics`, `risk`, `rollback`, `estimatedEffort`, `priority`.
 
@@ -160,7 +160,7 @@ Cada CR abaixo foi escrita para ser imediatamente consumível por uma AI especia
 
 ---
 
-**4) Como preparar este artefato para outra IA especializada**
+## 4) Como preparar este artefato para outra IA especializada
 
 - Forneça à IA a raiz do repositório (`/workspaces/askesis`) e o arquivo JSON `changeRequests` acima como entrada primária.
 - Pedir instruções claras e limitadas: "Para cada CR gere um branch `cr/CR-xx/<short>` com patch mínimo, adicione testes (vitest), execute guardrails e retorne diffs e logs de testes."
@@ -173,7 +173,7 @@ Exemplo de prompt para IA especializada:
 
 ---
 
-**5) Checklist mínimo para cada CR (entrega sweet-spot)**
+## 5) Checklist mínimo para cada CR (entrega sweet-spot)
 
 1. Patch aplicado com escopo mínimo (1-3 arquivos preferencialmente).
 2. Testes unitários adicionados/atualizados; cobertura relevante aumentada para a área tocada.
@@ -184,7 +184,7 @@ Exemplo de prompt para IA especializada:
 
 ---
 
-**6) Prioridade recomendada para execução (ordem prática)**
+## 6) Prioridade recomendada para execução (ordem prática)
 
 1. `CR-01` (Sanitização central) — reduz risco de XSS de forma ampla.
 2. `CR-02` (Backups/migrations) — protege dados do usuário.

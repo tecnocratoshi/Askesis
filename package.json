@@ -19,6 +19,7 @@
     "guardrail:audit": "node scripts/guardrail-audit.js",
     "guardrail:all": "npm run guardrail:security-html && npm run guardrail:locales && npm run guardrail:audit",
     "test": "npm run guardrail:all && vitest run",
+    "check:deps": "bash scripts/check-vite.sh",
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -35,20 +36,22 @@
   "license": "MIT",
   "dependencies": {
     "@google/genai": "^1.40.0",
-    "@upstash/redis": "^1.36.2"
+    "@upstash/redis": "^1.36.2",
+    "dompurify": "^3.3.3"
   },
   "overrides": {
     "serialize-javascript": ">=7.0.3"
   },
   "devDependencies": {
+    "@types/dompurify": "^2.3.3",
     "@types/node": "^24.12.2",
-    "@vitest/coverage-v8": "^4.0.18",
-    "@vitest/ui": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.2",
+    "@vitest/ui": "^4.1.2",
     "esbuild": "^0.27.3",
     "happy-dom": "^20.4.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.0",
-    "vitest": "^4.0.18",
+    "vitest": "^4.1.2",
     "workbox-build": "^7.0.0"
   }
 }

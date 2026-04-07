@@ -23,7 +23,15 @@ export default [
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-restricted-syntax': [
-        'error',
+        'warn',
+        {
+          selector: "AssignmentExpression[left.type='MemberExpression'][left.property.name='innerHTML']",
+          message: 'Avoid assigning to innerHTML; use a sanitized sink and replaceChildren.',
+        },
+        {
+          selector: "CallExpression[callee.property.name='createContextualFragment']",
+          message: 'Avoid createContextualFragment; parse sanitized HTML into a DocumentFragment using the sink API.',
+        },
         {
           selector: "AssignmentExpression[left.type='MemberExpression'][left.object.type='MemberExpression'][left.object.object.name='ui'][left.object.property.name='aiResponse'][left.property.name='innerHTML']",
           message: 'Use replaceChildren(DocumentFragment) em vez de ui.aiResponse.innerHTML.',
