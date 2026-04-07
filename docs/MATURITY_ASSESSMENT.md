@@ -53,7 +53,7 @@
 | index.tsx | 76 | L4 Maduro | Boot resiliente; `(window as any)` eliminado via declaração em `global.d.ts`. |
 | listeners.ts | 77 | L4 Maduro | Orquestração clara de eventos com debounce e proteções. |
 | manifest.json | 78 | L4 Maduro | Configuração PWA direta e estável. |
-| metadata.json | 75 | L3 Sólido | Configuração estável; schema simples validado pela própria sintaxe JSON. |
+| metadata.json | 79 | L4 Maduro | Schema adicionado e validação automatizada via `scripts/validate-json.js`; guardrail local passou. |
 | package-lock.json | 74 | L3 Sólido | `guardrail-audit.js` bloqueia HIGH/CRITICAL em prod; deps sem vulnerabilidades conhecidas. |
 | package.json | 80 | L4 Maduro | Configuração de projeto consistente e scripts claros. |
 | render.ts | 78 | L4 Maduro | Zero `any`; `Document.startViewTransition`, `scheduler`, `OneSignal` declarados em `global.d.ts`. |
@@ -145,3 +145,112 @@
 
 ---
 Obs.: Esta ponderação é heurística e orientada a priorização prática, não substitui threat model formal.
+
+**Plano para elevar arquivos `L3 Sólido` → `L4 Maduro`**
+
+**Objetivo:** Elevar todos os arquivos atualmente marcados como **L3 Sólido** para **L4 Maduro** por meio de ações mínimas, verificáveis e automatizadas, evitando sobre‑engenharia.
+
+**Princípios da estratégia**
+- Minimalismo prático: preferir mudanças pequenas, reversíveis e com validação automática.
+- Critérios claros: definir checklist L4 por categoria (CSS, HTML, JSON, lockfile).
+- Reaproveitar infra existente: integrar checks ao conjunto de guardrails já presente (guardrail-*.js).
+- Priorizar impacto: segurança → execução → experiência do desenvolvedor.
+- Feedback rápido: PRs pequenos com checklist e CI verdes.
+
+**Resumo do plano (alto nível)**
+1. Mapear e confirmar lista atual de arquivos L3 (inventário rápido).  
+2. Definir checklist L4 por categoria (aceitação mínima e automatizada).  
+3. Avaliar lacunas por arquivo (gap analysis leve).  
+4. Priorizar por risco/impacto e esforço (time‑box).  
+5. Para cada arquivo: aplicar mudanças mínimas (docs + linter/tests) e abrir PR com checklist.  
+6. Integrar checks no pipeline de `guardrail:all` / CI.  
+7. Auditoria final e sinalização como L4 no documento.
+
+**Arquivos alvo (atuais `L3 Sólido`) — inventário inicial**
+- index.css
+- index.html
+- metadata.json
+- package-lock.json
+- css/base.css
+- css/calendar.css
+- css/charts.css
+- css/components.css
+- css/forms.css
+- css/habits.css
+- css/header.css
+- css/layout.css
+- css/modals.css
+
+> Nota: validar este inventário automaticamente com grep na tabela acima antes de começar (passo 1).
+
+**Critérios de aceitação L4 (sintético, por categoria)**
+- CSS (arquivos `.css`): `stylelint` sem erros; tokens/variáveis documentadas; nenhum acoplamento crítico com JS detectado; smoke render pass (teste de snapshot simples ou render smoke).  
+- HTML (`index.html`): sem scripts inline sem justificativa; manifest válido; meta/CSP mínimos presentes.  
+- JSON (`metadata.json`): schema JSON definido e validação automatizada em CI; testes de sanity pass.  
+- lockfile (`package-lock.json`): `npm audit` sem HIGH/CRITICAL (guardrail já existe); `npm ci` reproduz install; policy de atualização documentada.
+
+**Passos detalhados (ação executável, por arquivo/ categoria)**
+
+1) Inventário e critérios (0.5 dia)
+- Ação: confirmar lista L3 a partir da tabela existente; gerar um PR com a lista como "target set".  
+- Entregável: checklist por arquivo (arquivo `docs/maturity/L3-to-L4-checklist.md` — opcional).  
+- Aceitação: lista confirmada e PR criada.
+
+2) Definir checklist L4 reutilizável (0.5–1 dia)
+- Ação: criar checklist único com seções por categoria (CSS/HTML/JSON/lockfile). Reaproveitar ferramentas: `stylelint`, `JSON Schema`, `npm audit`.  
+- Entregável: checklist em documento e template de PR (ex.: `PR_TEMPLATE_L4.md`).  
+- Aceitação: checklist aprovado por 1 revisor técnico.
+
+3) Aplicar mudanças mínimas por categoria (1–3 dias por grupo, time‑boxed)
+- CSS:
+	- Criar `.stylelintrc` com regras mínimas (bom padrão: `stylelint-config-standard`) e rodar `npx stylelint "css/**/*.css" --fix` para correções triviais.  
+	- Corrigir warnings não‑automáticos em PRs pequenos.  
+	- Integrar `npm run lint:style` no CI (job leve, cacheado).  
+	- Aceitação: CI `lint:style` passa; reviewer confirma tokens/documentação.
+- HTML:
+	- Rodar scan por `<script>` inline; justificar ou extrair.  
+	- Validar `manifest.json` via `scripts/check-sw-manifest.js` (já existente) e documentar meta tags mínimas.  
+	- Aceitação: nenhum script inline não justificado; manifest validado no CI.
+- JSON:
+	- Escrever `metadata.schema.json` e adicionar um pequeno script `node scripts/validate-json.js metadata.json` (uma linha de JS).  
+	- Integrar validação no CI.  
+	- Aceitação: validação passa.
+- package-lock.json:
+	- Agendar `npm audit` + `npm ci` no CI; garantir que `guardrail-audit.js` cobre HIGH/CRITICAL (já presente).  
+	- Se HIGH/CRITICAL aparecerem: processar via PR de atualização de dependência separado (time‑boxed).  
+	- Aceitação: CI audit sem HIGH/CRITICAL.
+
+4) Automatizar e integrar em guardrails (0.5–1 dia)
+- Ação: adicionar pequenos scripts ao conjunto de guardrails existentes (ex.: extensão de `guardrail-audit.js` para chamar `stylelint` e `validate-json.js`, ou criar `guardrail-style.js`).  
+- Aceitação: `npm run guardrail:all` inclui as novas checagens e passa para alvos L4.
+
+5) Revisão, auditoria e marcação L4 (0.5 dia por arquivo/PR)
+- Ação: cada PR deve incluir checklist preenchido; reviewer marca como "ready for L4". Após merge, atualizar esta tabela para trocar `L3 Sólido` → `L4 Maduro`.  
+- Entregável: PRs e entradas atualizadas no `docs/MATURITY_ASSESSMENT.md`.  
+- Aceitação: checklist completo + CI verde.
+
+**Advogado do Diabo — análise crítica (riscos, contrapartidas e mitigação)**
+- Risco: checklist frágil ou ambíguo → marcação L4 prematura.  
+	- Mitigação: regras de aceitação objetivas e exemplos; exigir 1 reviewer técnico.  
+- Risco: overload de CI (checks extra aumentam tempo).  
+	- Mitigação: rodar checks leves (linters) em PRs e checks pesados (audit/scan) em nightly/merge. Cache e paralelismo.  
+- Risco: falso senso de segurança (linters não cobrem runtime).  
+	- Mitigação: combinar linter + smoke render tests + monitor pós‑deploy. Time‑box correções complexas.  
+- Risco: esforço humano alto para corrigir legacy (muitos avisos).  
+	- Mitigação: priorizar por risco/impacto, tratar arquivos críticos primeiro, aceitar "documentar justificativa" como saída para itens não críticos.  
+- Risco: dependências atualizadas que quebram comportamento.  
+	- Mitigação: usar PRs pequenos, `npm ci` e canary builds; monitorar errors em produção.
+
+**Checklist final mínimo antes de marcar L4 (por arquivo)**
+- Linter/validator rodou e sem erros (ou justificativa documentada).  
+- Automação CI: job correspondente está integrado (estória/PR template).  
+- PR contém: alteração mínima, checklist preenchido, revisão técnica aprovada.  
+- Smoke tests básicos (render/manifest/schema) passam localmente e no CI.
+
+**Observações finais e next steps**
+- Começar pelo grupo CSS (maior número de arquivos L3) e `index.html` — impacto UX e manutenção alto.  
+- Time recomendado: 1 dev + 1 revisor por 3–5 dias para completar inventário e primeiras PRs.  
+- Evitar "revoluções": priorizar estabilidade e automação em vez de reescrever.
+
+---
+_Documento gerado automaticamente como estratégia auditable — não altera código. Para executar, seguir os passos acima e registrar a conclusão de cada item no TODO list do repositório._ 
