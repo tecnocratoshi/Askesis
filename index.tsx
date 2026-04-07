@@ -31,6 +31,7 @@ import { updateAppBadge } from './services/badge';
 import { setupMidnightLoop, logger, getLocalPushOptIn, ensureOneSignalReady, getNotificationPermission } from './utils';
 import { BOOT_RELOAD_DELAY_MS, BOOT_SYNC_TIMEOUT_MS } from './constants';
 import { t } from './i18n';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 
 // --- AUTO-HEALING & INTEGRITY CHECK ---
 const BOOT_ATTEMPTS_KEY = 'askesis_boot_attempts';
@@ -270,6 +271,9 @@ async function init(loader: HTMLElement | null) {
         clearTimeout(window.bootWatchdog);
         window.bootWatchdog = undefined;
     }
+
+    // Initialize Vercel Speed Insights
+    injectSpeedInsights();
 
     await initAuth();
     
