@@ -219,10 +219,19 @@ const _handleNotificationToggleChange = () => {
     // Chama requestPermission() SINCRONAMENTE dentro do gesto do usuário (sem async antes).
     // Isso garante compatibilidade com iOS Safari PWA e qualquer browser com restrição de gesto.
     let permPromise: Promise<string>;
-    if (currentPerm === 'default' &&
-        typeof Notification !== 'undefined' &&
-        typeof (Notification as unknown as { requestPermission?: Function }).requestPermission === 'function') {
-        permPromise = (Notification as unknown as { requestPermission?: () => Promise<string> }).requestPermission() as Promise<string>;
+    if (currentPerm === 'default' && typeof Notification !== 'undefined') {
+        const req = (Notification as any).requestPermission;
+        if (typeof req === 'function') {
+            try {
+                // requestPermission may return a Promise<string> or a string (older browsers).
+                const res = req.call(Notification);
+                permPromise = Promise.resolve(res as any);
+            } catch {
+                permPromise = Promise.resolve(currentPerm);
+            }
+        } else {
+            permPromise = Promise.resolve(currentPerm);
+        }
     } else {
         permPromise = Promise.resolve(currentPerm);
     }
