@@ -164,7 +164,14 @@ export default async function handler(req: Request) {
         }
         const { prompt, systemInstruction } = body;
 
-        if (!prompt || !systemInstruction) return new Response(null, { status: 400 });
+        if (
+            typeof prompt !== 'string'
+            || typeof systemInstruction !== 'string'
+            || prompt.length === 0
+            || systemInstruction.length === 0
+        ) {
+            return new Response(null, { status: 400 });
+        }
 
         const cacheKey = await computeCacheKey(prompt, systemInstruction);
         const cached = getCachedResponse(cacheKey);
