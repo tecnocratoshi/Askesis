@@ -66,7 +66,10 @@ async function freshClientWithFakeWorker(): Promise<{
     const fakeWorker = new FakeWorker();
 
     // Patch the Worker constructor so the module uses our stub.
-    vi.stubGlobal('Worker', vi.fn(() => fakeWorker));
+    const WorkerMock = vi.fn(function MockWorker(this: unknown) {
+        return fakeWorker;
+    }) as unknown as typeof Worker;
+    vi.stubGlobal('Worker', WorkerMock);
     // Provide window.setTimeout (used for timeout IDs)
     vi.stubGlobal('window', { setTimeout, clearTimeout });
 

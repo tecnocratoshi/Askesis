@@ -62,7 +62,8 @@ function calculateAdaptiveWorkerTimeoutMs(payload: any): number {
 }
 
 function isWorkerTimeoutError(error: unknown): boolean {
-    return error instanceof Error && error.message === 'Worker timeout';
+    return error instanceof Error
+        && (error.message === 'Worker timeout' || error.message === 'Worker task timeout');
 }
 
 export async function runWorkerTask<T>(
