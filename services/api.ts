@@ -62,6 +62,21 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, tim
 }
 
 // --- GERENCIAMENTO DE CHAVES ---
+//
+// SECURITY NOTE (F-02-005): The sync key is persisted in localStorage which is
+// accessible to any script running on the same origin. If the origin is
+// compromised (XSS), the sync key can be extracted and used to access the
+// user's data on the server until explicitly revoked.
+//
+// Revocation path: The server stores sync data keyed by SHA-256(syncKey).
+// Deleting the server-side record (KV key `sync_v3:{hash}`) invalidates the
+// key entirely. Clients should call `clearKey()` after triggering server-side
+// revocation. A full migration to a more secure storage mechanism (e.g.,
+// sessionStorage with a short-lived token) should be a dedicated feature with
+// explicit UX design for re-authentication.
+//
+// Do NOT proceed to key rotation or server-side revocation workflows without
+// verifying that the API supports it end-to-end.
 
 export const hasLocalSyncKey = (): boolean => {
     return !!localStorage.getItem(SYNC_KEY_STORAGE_KEY);

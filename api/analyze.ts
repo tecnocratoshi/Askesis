@@ -153,7 +153,15 @@ export default async function handler(req: Request) {
         if (bodyText === 'TIMEOUT') return new Response(null, { status: 408 });
         if (bodyText.length > MAX_PROMPT_SIZE) return new Response(null, { status: 413 });
 
-        const body = JSON.parse(bodyText);
+        let body: { prompt?: unknown; systemInstruction?: unknown };
+        try {
+            body = JSON.parse(bodyText) as typeof body;
+        } catch {
+            return new Response(JSON.stringify({ error: 'Invalid JSON', code: 'INVALID_JSON' }), {
+                status: 400,
+                headers: CORS_HEADERS
+            });
+        }
         const { prompt, systemInstruction } = body;
 
         if (!prompt || !systemInstruction) return new Response(null, { status: 400 });

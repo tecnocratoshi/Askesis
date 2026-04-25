@@ -298,7 +298,7 @@ export default async function handler(req: Request) {
             const code = typeof result[1] === 'string' ? result[1] : 'UNKNOWN';
             const detail = typeof result[2] === 'string' ? result[2] : undefined;
             const detailType = typeof result[3] === 'string' ? result[3] : undefined;
-            return new Response(JSON.stringify({ error: 'Lua Execution Error', code, detail, detailType, raw: result }), { status: 400, headers: HEADERS_BASE });
+            return new Response(JSON.stringify({ error: 'Lua Execution Error', code, detail }), { status: 400, headers: HEADERS_BASE });
         }
 
         return new Response(null, { status: 405 });

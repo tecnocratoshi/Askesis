@@ -27,13 +27,10 @@ function jsonReplacer(key: string, value: unknown) {
     return value;
 }
 
-function jsonReviver(key: string, value: unknown) {
+export function jsonReviver(key: string, value: unknown) {
     if (isRecord(value)) {
         if (value.__type === 'bigint' && typeof value.val === 'string') return BigInt(value.val);
         if (value.__type === 'map' && Array.isArray(value.val)) return new Map(value.val as Array<[unknown, unknown]>);
-    }
-    if (typeof value === 'string' && value.startsWith('0x')) {
-        try { return BigInt(value); } catch(e) { return value; }
     }
     return value;
 }

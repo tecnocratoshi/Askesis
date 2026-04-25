@@ -78,8 +78,15 @@ export function runWorkerTask<T>(
     return new Promise<T>((resolve, reject) => {
         const id = generateUUID();
         const timeoutId = window.setTimeout(() => {
-            if (!pending.has(id)) return;
-            resetWorker('Worker timeout');
+            // Isolate: only reject this specific pending task on timeout.
+            // Do NOT reset the whole worker — other pending tasks are unrelated
+            // and should not be cascaded into failure by a single slow request.
+            // The worker is only fully reset when it crashes (onerror → resetWorker).
+            const cb = pending.get(id);
+            if (!cb) return; // already resolved/rejected
+            pending.delete(id);
+            clearTimeout(cb.timeoutId);
+            cb.reject(new Error('Worker task timeout'));
         }, timeoutMs);
 
         pending.set(id, { resolve, reject, timeoutId });

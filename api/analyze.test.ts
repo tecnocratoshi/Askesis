@@ -70,3 +70,33 @@ describe('api/analyze quota cooldown', () => {
     expect(generateContentMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('api/analyze request validation', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.API_KEY = 'test-key';
+    process.env.CORS_ALLOWED_ORIGINS = 'https://askesis.vercel.app';
+    process.env.DISABLE_RATE_LIMIT = '1';
+  });
+
+  it('retorna 400 com código INVALID_JSON para body malformado', async () => {
+    const mod = await import('./analyze');
+    const handler = mod.default;
+
+    const req = new Request('https://askesis.vercel.app/api/analyze', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'origin': 'https://askesis.vercel.app',
+        'x-vercel-forwarded-for': '203.0.113.10'
+      },
+      body: 'not valid json {'
+    });
+
+    const res = await handler(req);
+    expect(res.status).toBe(400);
+    const json = await res.json() as { error: string; code: string };
+    expect(json.code).toBe('INVALID_JSON');
+  });
+});

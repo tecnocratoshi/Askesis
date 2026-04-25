@@ -16,6 +16,13 @@ type CheckRateLimitOptions = {
 const localRateLimitStores = new Map<string, Map<string, LocalRateEntry>>();
 let distributedLimiterRedis: Redis | null | undefined;
 
+// Circuit-breaker state for distributed rate limiter.
+// After REDIS_CB_WINDOW_MS of sustained Redis failures the limiter
+// switches to fail-closed (deny) instead of silently degrading to
+// a per-instance in-memory store that would be bypassable under scale.
+const REDIS_CB_WINDOW_MS = 30_000;
+let redisFirstFailureAt: number | null = null;
+
 export function parsePositiveInt(value: string | undefined, fallback: number): number {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
@@ -67,9 +74,12 @@ export function isOriginAllowed(req: Request, origin: string, allowedOrigins: re
 
 export function getCorsOrigin(req: Request, allowedOrigins: readonly string[]): string {
     const origin = req.headers.get('origin') || '';
+    // SECURITY: When no allowlist is configured, default to fail-closed.
+    // Same-deployment requests are still allowed via host matching.
+    // Set CORS_ALLOWED_ORIGINS explicitly to grant cross-origin access.
     if (allowedOrigins.length === 0) {
         if (isSameDeploymentOrigin(req, origin)) return origin;
-        return '*';
+        return 'null';
     }
     return isOriginAllowed(req, origin, allowedOrigins) ? origin : 'null';
 }
@@ -174,6 +184,9 @@ export async function checkRateLimit(options: CheckRateLimitOptions): Promise<Ra
             await redis.pexpire(redisKey, options.windowMs);
         }
 
+        // Redis is healthy — reset circuit-breaker.
+        redisFirstFailureAt = null;
+
         if (count > options.maxRequests) {
             const ttlMs = Number(await redis.pttl(redisKey));
             return {
@@ -184,6 +197,18 @@ export async function checkRateLimit(options: CheckRateLimitOptions): Promise<Ra
 
         return { limited: false, retryAfterSec: 0 };
     } catch {
+        // Redis failure: track first failure time for the circuit-breaker.
+        const now = Date.now();
+        if (redisFirstFailureAt === null) {
+            redisFirstFailureAt = now;
+        }
+        // If Redis has been failing for longer than the circuit-breaker window,
+        // fail-closed to prevent abuse across horizontally-scaled instances.
+        if (now - redisFirstFailureAt >= REDIS_CB_WINDOW_MS) {
+            return { limited: true, retryAfterSec: 60 };
+        }
+        // Within the grace window: degrade to local limiter and log.
+        console.warn('[rate-limit] Redis unavailable, falling back to local limiter (grace window active)');
         return checkRateLimitLocal(options);
     }
 }

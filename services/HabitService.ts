@@ -48,6 +48,7 @@ export class HabitService {
         
         if (log !== undefined) {
             const day = parseInt(dateISO.substring(8, 10), 10);
+            if (!Number.isInteger(day) || day < 1 || day > 31) return 0;
             const bitPos = BigInt(((day - 1) * 9) + PERIOD_OFFSET[time]);
             const block = (log >> bitPos) & 7n; // Lê o bloco de 3 bits
             

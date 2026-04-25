@@ -190,6 +190,13 @@ describe('HabitService (Bitmasks Core)', () => {
         expect(serialized[0][0]).toContain('h1_2024-05'); // Chave deve conter o mês
         expect(serialized[0][1]).toMatch(/^0x[0-9a-f]+$/); // Valor deve ser Hex
     });
+
+    it('deve tratar dateISO malformado como ausência de dado na leitura', () => {
+        state.monthlyLogs.set('habit-123_data-inval_2024-01', 1n);
+
+        expect(() => HabitService.getStatus('habit-123_data-inval', 'invalido', 'Morning')).not.toThrow();
+        expect(HabitService.getStatus('habit-123_data-inval', 'invalido', 'Morning')).toBe(HABIT_STATE.NULL);
+    });
 });
 
 // ================================================================================

@@ -74,4 +74,20 @@ describe('api/_httpSecurity', () => {
 
     expect(getClientIp(req)).toBe('192.0.2.5');
   });
+
+  it('retorna null para origem externa quando allowlist está vazia (fail-closed)', () => {
+    const req = makeReq({
+      origin: 'https://evil.example.com',
+      host: 'api.example.com'
+    });
+    expect(getCorsOrigin(req, [])).toBe('null');
+  });
+
+  it('permite mesma origem de deploy mesmo com allowlist vazia', () => {
+    const req = makeReq({
+      origin: 'https://api.example.com',
+      host: 'api.example.com'
+    });
+    expect(getCorsOrigin(req, [])).toBe('https://api.example.com');
+  });
 });
